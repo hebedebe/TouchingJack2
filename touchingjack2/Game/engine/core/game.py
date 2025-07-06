@@ -21,6 +21,7 @@ class Game:
         self.ctx = moderngl.create_context()
         self.ctx.enable(moderngl.BLEND)
         self.ctx.blend_func = (moderngl.SRC_ALPHA, moderngl.ONE_MINUS_SRC_ALPHA)
+        self.clear_colour = (0, 0, 0, 255)
 
         self.clock = pygame.time.Clock()
         self.running = True
@@ -189,25 +190,28 @@ class Game:
     def render_scene(self):
         self.current_scene.render() if self.current_scene else None
 
+    def render_ui(self):
+        """Render UI elements after post-processing."""
+        if self.current_scene:
+            self.current_scene.render_ui()
+
     def render(self):
         # 🧱 Step 1: Draw to scene framebuffer
         self.scene_fbo.use()
-        self.buffer.fill((0, 0, 0, 255))  # Clear buffer with black
+        self.buffer.fill(self.clear_colour)  # Clear buffer with black
         self.render_scene()
 
         buffer_data = pygame.image.tobytes(self.buffer, 'RGBA', True)
         self.main_color.write(buffer_data)
 
-        # 🧱 Step 2: Postprocess chain
+        # 🧱 Step 2: Postprocess chain - always render to textures, never directly to screen
         src_tex = self.main_color
         for i, _shader in enumerate(self.postprocess_chain):
             shader = _shader.get()
-            # Last shader outputs to screen
-            if i == len(self.postprocess_chain) - 1:
-                self.ctx.screen.use()
-            else:
-                dst_fbo = self.ping_fbo if i % 2 == 0 else self.pong_fbo
-                dst_fbo.use()
+            
+            # Choose destination framebuffer (ping-pong between textures)
+            dst_fbo = self.ping_fbo if i % 2 == 0 else self.pong_fbo
+            dst_fbo.use()
 
             shader.program['screen_texture'].value = 0
             src_tex.use(location=0)
@@ -217,6 +221,32 @@ class Game:
 
             # Next input is current output
             src_tex = self.ping_tex if i % 2 == 0 else self.pong_tex
+
+        # 🧱 Step 3: Render UI elements on top of post-processed result
+        # Read back the final post-processed result to the pygame buffer
+        final_data = src_tex.read()
+        # Convert from bytes to pygame surface
+        final_surface = pygame.image.frombuffer(final_data, (self.width, self.height), 'RGBA')
+        final_surface = pygame.transform.flip(final_surface, False, True)  # Flip vertically
+        self.buffer.blit(final_surface, (0, 0))
+        
+        # Render UI on top
+        self.render_ui()
+        
+        # 🧱 Step 4: Final composite to screen
+        buffer_data = pygame.image.tobytes(self.buffer, 'RGBA', True)
+        screen_texture = self.ctx.texture((self.width, self.height), components=4)
+        screen_texture.write(buffer_data)
+        
+        self.ctx.screen.use()
+        default_shader = self.get_shader('default').get()
+        default_shader.program['screen_texture'].value = 0
+        screen_texture.use(location=0)
+        
+        vao = self.get_quad_vao(self.get_shader('default'))
+        vao.render()
+        
+        screen_texture.release()
 
     def run(self):
         while self.running:

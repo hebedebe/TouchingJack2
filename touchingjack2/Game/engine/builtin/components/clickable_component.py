@@ -201,16 +201,16 @@ class ClickableComponent(Component):
                 if self.on_drag_start:
                     self.on_drag_start()
     
-    def _render(self):
-        """Debug method to visualize the clickable bounds."""
-        if not self.enabled or not self.actor:
-            return
+    # def render(self):
+    #     """Debug method to visualize the clickable bounds."""
+    #     if not self.enabled or not self.actor:
+    #         return
         
-        screen = Game().buffer
+    #     screen = Game().buffer
             
-        rect = self.get_bounds_rect()
-        color = (0, 255, 0) if self.is_hovered else (255, 0, 0)
-        if self.is_clicked:
-            color = (0, 0, 255)
+    #     rect = self.get_bounds_rect()
+    #     color = (0, 255, 0) if self.is_hovered else (255, 0, 0)
+    #     if self.is_clicked:
+    #         color = (0, 0, 255)
             
-        pygame.draw.rect(screen, color, rect, 2)
+    #     pygame.draw.rect(screen, color, rect, 2)

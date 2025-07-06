@@ -1,3 +1,4 @@
+from engine.builtin.shaders import chromatic_aberration
 from engine.core.scene import Scene
 from engine.core.game import Game
 from engine.builtin.ui.button import Button
@@ -17,6 +18,8 @@ class MainMenuScene(Scene):
 
     def on_enter(self):
         print("Entering Main Menu Scene")
+        Game().add_postprocess_shader(chromatic_aberration.chromatic_aberration_shader)
+
         self.panel = Panel((100, 100), 400, 300)
 
         self.title_label = Label((70, 20), 500, "Touching Jack 2: The Remake The Sequel (Complete Edition)", font_size=40, color=(255, 255, 255))
@@ -46,9 +49,15 @@ class MainMenuScene(Scene):
     def on_exit(self):
         print("Exiting Main Menu Scene")
         pygame.mixer.music.stop()
+        # Game().remove_postprocess_shader(chromatic_aberration.chromatic_aberration_shader)
 
     def handle_event(self, event):
-        self.ui_manager.handle_event(event)
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_F4:
+                Game().toggle_fullscreen()
+            if event.key == pygame.K_ESCAPE:
+                Game().load_scene("MainMenu")
+        return super().handle_event(event)
 
     def start_game(self):
         print("Start Game")

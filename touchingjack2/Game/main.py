@@ -6,9 +6,10 @@ from engine.core.game import Game
 from engine.core.asset_manager import AssetManager
 
 # Builtin engine imports
-from engine.builtin.shaders import vignette_shader
+from engine.builtin.shaders import chromatic_aberration, vignette_shader
 
 # Local scene imports
+from jumpscare_garfield import JumpscareGarfieldScene
 from main_menu import MainMenuScene
 from game import GameScene
 from nosleep import NoSleepScene
@@ -29,6 +30,7 @@ def main():
     game.add_scene(GameScene())
     game.add_scene(NoSleepScene())
     game.add_scene(JumpscareScene())
+    game.add_scene(JumpscareGarfieldScene())
     game.add_scene(GameOverScene())
     game.add_scene(WinScene())
 

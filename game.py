@@ -3,7 +3,7 @@ from copy import copy
 import math
 import random
 
-from engine.builtin.shaders import cylindrical_undo
+from engine.builtin.shaders import cylindrical_undo, vignette
 from engine.core.scene import Scene
 from engine.core.game import Game
 from engine.core.world.actor import Actor
@@ -51,6 +51,10 @@ class GameScene(Scene):
         self.garfield_min_timer = 5
         self.garfield_max_timer = 15
 
+        self.ambient_timer_min = 20
+        self.ambient_timer_max = 60
+        self.ambient_timer = random.randint(self.ambient_timer_min, self.ambient_timer_max)
+
         self._sound = 0
         self.sound = 0
         self.max_sound = 4
@@ -59,6 +63,7 @@ class GameScene(Scene):
         self.passive_monitor_sound = 0.7
         self.monitor_turn_on_sound = 1
         self.move_sound = 0.7
+        self.sleep_sound = 0.2
         self.switch_camera_sound = 1
         self.sound_aggression = 2
         self.passive_sound_aggression = 1
@@ -89,7 +94,9 @@ class GameScene(Scene):
         pygame.mixer.music.load("assets/sounds/ambient_game.mp3")
         pygame.mixer.music.play(-1)
 
+        Game().remove_postprocess_shader(vignette.vignette_shader)
         Game().add_postprocess_shader(cylindrical_undo.cylindrical_undo_shader)
+        Game().add_postprocess_shader(vignette.vignette_shader)
 
         interior_brightness = 200  # Adjust this value to change the brightness of the interior
 
@@ -290,8 +297,13 @@ class GameScene(Scene):
             self.monitor_on = False
 
         if self.position == 2 and self.jack_pos == -1 and not self.jack_noticed:
-            AssetManager().getSound("sting").play()
+            AssetManager().getSound(random.choice(["sting", "sting_2"])).play()
             self.jack_noticed = True
+
+        self.ambient_timer -= delta_time
+        if self.ambient_timer <= 0:
+            self.ambient_timer = random.randint(self.ambient_timer_min, self.ambient_timer_max)
+            AssetManager().getSound(random.choice(["ambient_1", "ambient_2", "ambient_3", "ambient_4", "ambient_5"])).play()
 
         self.sleep_button.set_active(self.position == 0 and not self.asleep)
         self.next_cam_button.set_active(self.position == 1 and not self.asleep and self.monitor_on)
@@ -348,7 +360,7 @@ class GameScene(Scene):
         self.target_sound = min(max(0, self.target_sound - (self.sound_fade_rate * delta_time)), self.max_sound)
         self._sound = min(self._sound + ((self.target_sound - self._sound) * (self.sound_smoothing * delta_time)), self.max_sound)
 
-        self.sound = self._sound + self.passive_monitor_sound * self.monitor_on
+        self.sound = self._sound + self.passive_monitor_sound * self.monitor_on + self.sleep_sound * self.asleep
 
         self.jack_move_timer -= delta_time
         if self.jack_move_timer - (self.sound * self.passive_sound_aggression) <= 0:

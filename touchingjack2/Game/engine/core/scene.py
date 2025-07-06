@@ -90,5 +90,7 @@ class Scene:
         for actor in self.actors:
             actor.handleRender()
 
+    def render_ui(self):
+        """Render UI elements separately after post-processing."""
         self.ui_manager.render(self.game.buffer)
 #endregion
