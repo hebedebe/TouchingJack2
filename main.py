@@ -6,7 +6,7 @@ from engine.core.game import Game
 from engine.core.asset_manager import AssetManager
 
 # Builtin engine imports
-from engine.builtin.shaders import vignette_shader
+from engine.builtin.shaders import chromatic_aberration, vignette_shader
 
 # Local scene imports
 from main_menu import MainMenuScene

@@ -74,7 +74,7 @@ class GameScene(Scene):
         self.min_wait_time_params = [5, 3, 0.9, 0.65, 3.7]
 
     def calc_wait_time(self, base_time, aggression, offset, ramp, ramp2):
-        return max(1,int(base_time - math.log(aggression * ((self.time/self.hour_length) + offset)**ramp)**ramp2 - self.sound * self.sound_aggression))
+        return max(4,int(base_time - math.log(aggression * ((self.time/self.hour_length) + offset)**ramp)**ramp2 - self.sound * self.sound_aggression))
 
     def on_enter(self):
         pygame.mixer.music.load("assets/sounds/ambient_game.mp3")
