@@ -24,6 +24,8 @@ from engine.builtin.components.audio_component import AudioComponent
 class GameScene(Scene):
     def __init__(self):
         super().__init__("Game")
+        Game().clear_colour = (150, 160, 160, 255)  # Set a light grey background
+
         self.position = 1
         self.positions = [
             pygame.Vector2(-640, 0),  # Left position
@@ -43,13 +45,19 @@ class GameScene(Scene):
         self.jack_jumpscare_timer_max = 6
         self.jack_noticed = False
 
+        self.garfield_active_time = 2 #in hours
+        self.garfield_on_bed = False
+        self.garfield_timer = 0
+        self.garfield_min_timer = 5
+        self.garfield_max_timer = 15
+
         self._sound = 0
         self.sound = 0
         self.max_sound = 4
         self.target_sound = 0
         self.sound_smoothing = 10
         self.passive_monitor_sound = 0.7
-        self.monitor_turn_on_sound = 2
+        self.monitor_turn_on_sound = 1
         self.move_sound = 0.7
         self.switch_camera_sound = 1
         self.sound_aggression = 2
@@ -116,7 +124,7 @@ class GameScene(Scene):
 
         power_button = Actor("power_button")
         power_button_sprite = SpriteComponent("power_button", tint_color=(interior_brightness, interior_brightness, interior_brightness))
-        power_button_click = ClickableComponent(20, 20, (0, 0))
+        power_button_click = ClickableComponent(22, 22, (-22, 0))
         power_button_click_audio = AudioComponent("click")
         power_button_start_audio = AudioComponent("startup", volume=2)
         def toggle_monitor():
@@ -139,7 +147,7 @@ class GameScene(Scene):
 
         fireman_poster = Actor("fireman_poster")
         fireman_poster_sprite = SpriteComponent("fireman_poster", tint_color=(interior_brightness, interior_brightness, interior_brightness))
-        fireman_poster_click = ClickableComponent(70, 100, (5, 0))
+        fireman_poster_click = ClickableComponent(70, 100, (-20, 0))
         fireman_poster_audio = AudioComponent("grunt")
         fireman_poster_click.set_click_callback(lambda: fireman_poster_audio.play())
         fireman_poster.transform.scale = pygame.Vector2(0.2)  # Adjust scale as needed
@@ -151,11 +159,19 @@ class GameScene(Scene):
 
         bed = Actor("bed")
         bed_sprite = SpriteComponent("bed", tint_color=(interior_brightness, interior_brightness, interior_brightness))
-        bed.transform.scale = pygame.Vector2(1.5)  # Adjust scale as needed
+        bed.transform.scale = pygame.Vector2(1.1)  # Adjust scale as needed
         bed.transform.position = self.positions[0]
         bed.transform.position.x -= 130
         bed.addComponent(bed_sprite)
         self.add_actor(bed)
+
+        garfield = Actor("garfield")
+        self.garfield_sprite = SpriteComponent("garfield", tint_color=(interior_brightness, interior_brightness, interior_brightness))
+        garfield.transform.scale = pygame.Vector2(0.2)  # Adjust scale as needed
+        garfield.transform.position = self.positions[0] + pygame.Vector2(0, 50)
+        garfield.transform.position.x -= 130
+        garfield.addComponent(self.garfield_sprite)
+        self.add_actor(garfield)
 
         window = Actor("window")
         window_sprite = SpriteComponent("window", tint_color=(interior_brightness, interior_brightness, interior_brightness))
@@ -191,6 +207,8 @@ class GameScene(Scene):
             if self.sleep > 40:
                 print("You are too awake to sleep!")
                 return
+            if self.garfield_on_bed:
+                Game().load_scene("Jumpscare Garfield")
             self.asleep = True
             self.sleep_timer = 0
             self.sleep_timer -= random.randint(1, 3)
@@ -241,11 +259,20 @@ class GameScene(Scene):
     def on_exit(self):
         pygame.mixer.music.stop()
         Game().remove_postprocess_shader(cylindrical_undo.cylindrical_undo_shader)
+        Game().clear_colour = (0, 0, 0, 255)  # Reset background color to black
         return super().on_exit()
     
     def update(self, delta_time):
         # Update camera position based on the current position
         self.get_actor("camera").transform.position = self.positions[self.position]
+
+        self.garfield_sprite.enabled = self.garfield_on_bed
+
+        if self.time // self.hour_length >= self.garfield_active_time:
+            self.garfield_timer -= delta_time
+            if self.garfield_timer <= 0:
+                self.garfield_on_bed = not self.garfield_on_bed
+                self.garfield_timer = random.randint(self.garfield_min_timer, self.garfield_max_timer)
 
         if self.time >= self.hour_length * 6:  # 6 AM
             Game().load_scene("Win")
@@ -327,14 +354,14 @@ class GameScene(Scene):
         if self.jack_move_timer - (self.sound * self.passive_sound_aggression) <= 0:
             mintime = self.calc_wait_time(*self.min_wait_time_params)
             maxtime = self.calc_wait_time(*self.max_wait_time_params)
-            self.jack_move_timer = random.randint(mintime, maxtime)
+            self.jack_move_timer = random.randint(mintime, maxtime) / (3 if self.power <= 0 else 1)
             print(f"min wait time: {mintime}, max wait time: {maxtime}")
             if self.jack_pos == -1:
                 Game().load_scene("Jumpscare")
             else:
                 self.jack_pos += 1
                 if self.jack_pos > 2:
-                    self.jack_pos = -1 if random.random() < 0.5 else random.choice([0, 1, 2])
+                    self.jack_pos = -1 if random.random() < 0.5 + self.time/(6*self.hour_length) else random.choice([0, 1, 2])
                 if self.jack_pos == -1:
                     self.jack_move_timer = random.randint(self.jack_jumpscare_timer_min, self.jack_jumpscare_timer_max)
             print(f"Set wait time to {self.jack_move_timer:.2f} seconds")
