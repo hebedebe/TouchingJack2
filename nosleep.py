@@ -15,3 +15,11 @@ class NoSleepScene(Scene):
             if event.key == pygame.K_ESCAPE:
                 Game().load_scene("MainMenu")
         return super().handle_event(event)
+    
+    def handle_event(self, event):
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_F4:
+                Game().toggle_fullscreen()
+            if event.key == pygame.K_ESCAPE:
+                Game().load_scene("MainMenu")
+        return super().handle_event(event)
