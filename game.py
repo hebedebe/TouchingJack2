@@ -3,6 +3,7 @@ from copy import copy
 import math
 import random
 
+from engine.builtin.shaders import cylindrical_undo
 from engine.core.scene import Scene
 from engine.core.game import Game
 from engine.core.world.actor import Actor
@@ -70,15 +71,17 @@ class GameScene(Scene):
         self.sleep_timer = 0
         self.sleep_timer_max = 8  # Maximum time before waking up in seconds
 
-        self.max_wait_time_params = [40, 3, 0.9, 10, 1.5]
-        self.min_wait_time_params = [5, 3, 0.9, 0.65, 3.7]
+        self.max_wait_time_params = [40, 5]
+        self.min_wait_time_params = [16, 1.38]
 
-    def calc_wait_time(self, base_time, aggression, offset, ramp, ramp2):
-        return max(4,int(base_time - math.log(aggression * ((self.time/self.hour_length) + offset)**ramp)**ramp2 - self.sound * self.sound_aggression))
+    def calc_wait_time(self, base_time, aggression):
+        return max(4,int(base_time - aggression*(self.time/self.hour_length) - self.sound * self.sound_aggression))
 
     def on_enter(self):
         pygame.mixer.music.load("assets/sounds/ambient_game.mp3")
         pygame.mixer.music.play(-1)
+
+        Game().add_postprocess_shader(cylindrical_undo.cylindrical_undo_shader)
 
         interior_brightness = 200  # Adjust this value to change the brightness of the interior
 
@@ -231,12 +234,13 @@ class GameScene(Scene):
         self.look_left_button.visible = False
         self.ui_manager.add_element(self.look_left_button)
         self.ui_manager.add_element(self.look_right_button)
-        self.ui_manager.add_element(FPSCounter())
         self.ui_manager.add_element(self.lower_panel)
+        self.ui_manager.add_element(FPSCounter((0,20)))
 
 
     def on_exit(self):
         pygame.mixer.music.stop()
+        Game().remove_postprocess_shader(cylindrical_undo.cylindrical_undo_shader)
         return super().on_exit()
     
     def update(self, delta_time):
