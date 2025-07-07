@@ -20,6 +20,7 @@ class MainMenuScene(Scene):
         print("Entering Main Menu Scene")
         Game().add_postprocess_shader(chromatic_aberration.chromatic_aberration_shader)
         Game().clear_colour = (0, 0, 0, 255)
+        Game().merge_ui_with_scene = True
 
         self.panel = Panel((100, 100), 400, 300)
 
@@ -58,6 +59,7 @@ class MainMenuScene(Scene):
     def on_exit(self):
         print("Exiting Main Menu Scene")
         pygame.mixer.music.stop()
+        Game().merge_ui_with_scene = False
         # Game().remove_postprocess_shader(chromatic_aberration.chromatic_aberration_shader)
 
     def handle_event(self, event):
@@ -65,7 +67,7 @@ class MainMenuScene(Scene):
             if event.key == pygame.K_F4:
                 Game().toggle_fullscreen()
             if event.key == pygame.K_ESCAPE:
-                Game().load_scene("MainMenu")
+                Game().quit()
         return super().handle_event(event)
 
     def start_game(self):
