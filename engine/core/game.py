@@ -8,6 +8,23 @@ import numpy as np
 from .singleton import singleton
 from .rendering.shader import Shader, DEFAULT_VERT, DEFAULT_FRAG
 
+# UI Compositing shader for efficient UI rendering
+UI_COMPOSITE_FRAG = """
+#version 330
+in vec2 uv;
+out vec4 fragColor;
+uniform sampler2D scene_texture;  // Post-processed scene
+uniform sampler2D ui_texture;     // UI layer
+
+void main() {
+    vec4 scene_color = texture(scene_texture, uv);
+    vec4 ui_color = texture(ui_texture, uv);
+    
+    // Alpha blend UI over scene
+    fragColor = mix(scene_color, ui_color, ui_color.a);
+}
+"""
+
 @singleton
 class Game:
     def __init__(self, width=1280, height=720, title="OpenGL Game", fullscreen=False):
@@ -29,6 +46,9 @@ class Game:
         self.height = height
         self.last_time = time.time()
         self.delta_time = 0.1
+        
+        # 🆕 Performance settings
+        self.use_efficient_ui = True  # Toggle between efficient and legacy UI rendering
 
         self.scenes = {}
         self.current_scene = None
@@ -57,6 +77,8 @@ class Game:
         self.ctx.viewport = (0, 0, self.width, self.height)
         # Reinitialize the buffer to match the new resolution
         self.buffer = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
+        # Clear VAO cache since framebuffers changed
+        self.quad_vao_cache.clear()
         print(f"Fullscreen mode set to {'on' if fullscreen else 'off'}.")
 
     def toggle_fullscreen(self):
@@ -67,6 +89,13 @@ class Game:
             self.set_fullscreen(True)
         # Debugging: Print current flags
         print(f"Current display flags: {self.flags}")
+
+    def toggle_ui_rendering_mode(self):
+        """Toggle between efficient GPU-based UI rendering and legacy CPU-based rendering."""
+        self.use_efficient_ui = not self.use_efficient_ui
+        mode = "Efficient GPU-based" if self.use_efficient_ui else "Legacy CPU-based"
+        print(f"UI rendering mode switched to: {mode}")
+        return self.use_efficient_ui
 
 #region OpenGL
 
@@ -80,6 +109,10 @@ class Game:
         self.pong_tex = self.ctx.texture((self.width, self.height), components=4)
         self.ping_fbo = self.ctx.framebuffer(color_attachments=[self.ping_tex])
         self.pong_fbo = self.ctx.framebuffer(color_attachments=[self.pong_tex])
+        
+        # 🆕 UI framebuffer for efficient UI rendering
+        self.ui_color = self.ctx.texture((self.width, self.height), components=4)
+        self.ui_fbo = self.ctx.framebuffer(color_attachments=[self.ui_color])
 
     def init_fullscreen_quad(self):
         quad = np.array([
@@ -106,6 +139,7 @@ class Game:
     
     def init_default_shader(self):
         self.load_shader('default', DEFAULT_VERT, DEFAULT_FRAG)
+        self.load_shader('ui_composite', DEFAULT_VERT, UI_COMPOSITE_FRAG)  # 🆕 UI compositing shader
 
         self.add_postprocess_shader(self.get_shader('default'))  # Add default shader to post-process chain
 
@@ -176,6 +210,8 @@ class Game:
             self.init_framebuffers()
             # Reinitialize the buffer to match the new resolution
             self.buffer = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
+            # Clear VAO cache since shaders might need re-binding
+            self.quad_vao_cache.clear()
             # Debugging: Print new dimensions
             print(f"Resolution changed: {self.width}x{self.height}")
         elif self.current_scene:
@@ -191,11 +227,34 @@ class Game:
         self.current_scene.render() if self.current_scene else None
 
     def render_ui(self):
-        """Render UI elements after post-processing."""
+        """Render UI elements to separate UI framebuffer."""
         if self.current_scene:
             self.current_scene.render_ui()
+            
+    def render_ui_to_texture(self):
+        """Render UI to the UI framebuffer efficiently."""
+        # Clear UI framebuffer with transparent
+        self.ui_fbo.use()
+        self.ctx.clear(0.0, 0.0, 0.0, 0.0)  # Transparent clear
+        
+        # Create temporary pygame surface for UI
+        ui_surface = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
+        ui_surface.fill((0, 0, 0, 0))  # Clear with transparent
+        
+        # Render UI to the surface (this is the only pygame rendering)
+        if self.current_scene:
+            # Temporarily set buffer to UI surface for UI rendering
+            old_buffer = self.buffer
+            self.buffer = ui_surface
+            self.current_scene.render_ui()
+            self.buffer = old_buffer
+        
+        # Upload UI surface to texture (single GPU upload)
+        ui_data = pygame.image.tobytes(ui_surface, 'RGBA', True)
+        self.ui_color.write(ui_data)
 
-    def render(self):
+    def render_legacy(self):
+        """Legacy rendering method (resource-intensive) for performance comparison."""
         # 🧱 Step 1: Draw to scene framebuffer
         self.scene_fbo.use()
         self.buffer.fill(self.clear_colour)  # Clear buffer with black
@@ -222,7 +281,7 @@ class Game:
             # Next input is current output
             src_tex = self.ping_tex if i % 2 == 0 else self.pong_tex
 
-        # 🧱 Step 3: Render UI elements on top of post-processed result
+        # 🧱 Step 3: Render UI elements on top of post-processed result (EXPENSIVE!)
         # Read back the final post-processed result to the pygame buffer
         final_data = src_tex.read()
         # Convert from bytes to pygame surface
@@ -233,7 +292,7 @@ class Game:
         # Render UI on top
         self.render_ui()
         
-        # 🧱 Step 4: Final composite to screen
+        # 🧱 Step 4: Final composite to screen (MORE EXPENSIVE!)
         buffer_data = pygame.image.tobytes(self.buffer, 'RGBA', True)
         screen_texture = self.ctx.texture((self.width, self.height), components=4)
         screen_texture.write(buffer_data)
@@ -247,6 +306,61 @@ class Game:
         vao.render()
         
         screen_texture.release()
+
+    def render(self):
+        """Main render method - uses efficient or legacy rendering based on toggle."""
+        if self.use_efficient_ui:
+            self.render_efficient()
+        else:
+            self.render_legacy()
+            
+    def render_efficient(self):
+        """Efficient GPU-only rendering method."""
+        # 🧱 Step 1: Render scene to framebuffer
+        self.scene_fbo.use()
+        self.buffer.fill(self.clear_colour)  # Clear buffer with black
+        self.render_scene()
+
+        # Upload scene to texture
+        buffer_data = pygame.image.tobytes(self.buffer, 'RGBA', True)
+        self.main_color.write(buffer_data)
+
+        # 🧱 Step 2: Apply post-processing chain (GPU-only)
+        src_tex = self.main_color
+        for i, _shader in enumerate(self.postprocess_chain):
+            shader = _shader.get()
+            
+            # Choose destination framebuffer (ping-pong between textures)
+            dst_fbo = self.ping_fbo if i % 2 == 0 else self.pong_fbo
+            dst_fbo.use()
+            self.ctx.clear(0.0, 0.0, 0.0, 1.0)  # Clear with black
+
+            shader.program['screen_texture'].value = 0
+            src_tex.use(location=0)
+
+            vao = self.get_quad_vao(shader)
+            vao.render()
+
+            # Next input is current output
+            src_tex = self.ping_tex if i % 2 == 0 else self.pong_tex
+
+        # 🧱 Step 3: Render UI to separate texture
+        self.render_ui_to_texture()
+        
+        # 🧱 Step 4: Composite scene + UI and render to screen (GPU-only)
+        self.ctx.screen.use()
+        self.ctx.clear(0.0, 0.0, 0.0, 1.0)
+        
+        composite_shader = self.get_shader('ui_composite').get()
+        composite_shader.program['scene_texture'].value = 0
+        composite_shader.program['ui_texture'].value = 1
+        
+        # Bind both textures
+        src_tex.use(location=0)        # Post-processed scene
+        self.ui_color.use(location=1)  # UI layer
+        
+        vao = self.get_quad_vao(composite_shader)
+        vao.render()
 
     def run(self):
         while self.running:
