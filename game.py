@@ -41,8 +41,8 @@ class GameScene(Scene):
         self.jack_pos = 0  # -1 means outside, 0 means cam_1, 1 means cam_2, 2 means cam_3
         self.jack_positions = ["jack_cam_1", "jack_cam_2", "jack_cam_3", "jack_outside"]
         self.jack_locations = [(20, 70), (0, 0), (0, 0), (640,0)]
-        self.jack_sizes = [0.05, 0.1, 0.1, 0.9]
-        self.jack_move_timer = random.randint(20, 30)
+        self.jack_sizes = [0.05, 0.1, 0.1, 0.67]
+        self.jack_move_timer = random.uniform(20, 30)
         self.jack_jumpscare_timer_min = 6.5
         self.jack_jumpscare_timer_max = 8
         self.jack_noticed = False
@@ -55,12 +55,12 @@ class GameScene(Scene):
 
         self.ambient_timer_min = 20
         self.ambient_timer_max = 60
-        self.ambient_timer = random.randint(self.ambient_timer_min, self.ambient_timer_max)
+        self.ambient_timer = random.uniform(self.ambient_timer_min, self.ambient_timer_max)
 
         self.zac_pos = -1  # -1 is not present, 0 is in vent and 1 is in room
         self.zac_min_move_timer = 10
         self.zac_max_move_timer = 30
-        self.zac_move_timer = random.randint(self.zac_min_move_timer, self.zac_max_move_timer) + 50
+        self.zac_move_timer = random.uniform(self.zac_min_move_timer, self.zac_max_move_timer) + 20
         self.zac_flashlight_move_threshold_min = 3
         self.zac_flashlight_move_threshold_max = 6
         self.zac_flashlight_move_threshold = random.uniform(self.zac_flashlight_move_threshold_min, self.zac_flashlight_move_threshold_max)
@@ -68,6 +68,7 @@ class GameScene(Scene):
         self.zac_ambient_noise = 2.5
         self.zac_flashlight_cooldown = 20
         self.zac_appearance_cooldown = 35
+        self.seen_zac = False
 
         self._sound = 0
         self.sound = 0
@@ -102,6 +103,14 @@ class GameScene(Scene):
 
         self.max_wait_time_params = [40, 5]
         self.min_wait_time_params = [16, 1.38]
+
+        # Track hover states to prevent repeated movement on single hover
+        self.look_button_hover_states = {
+            'left': False,
+            'right': False, 
+            'up': False,
+            'down': False
+        }
 
     def calc_wait_time(self, base_time, aggression):
         return max(4,int(base_time - aggression*(self.time/self.hour_length) - self.sound * self.sound_aggression))
@@ -180,7 +189,7 @@ class GameScene(Scene):
         power_button_sprite = SpriteComponent("power_button", tint_color=(interior_brightness, interior_brightness, interior_brightness))
         power_button_click = ClickableComponent(22, 22, (-22, 0))
         power_button_click_audio = AudioComponent("click")
-        power_button_start_audio = AudioComponent("startup", volume=2)
+        power_button_start_audio = AudioComponent("startup", volume=0.2)
         def toggle_monitor():
             if (self.power <= 0):
                 return
@@ -240,6 +249,7 @@ class GameScene(Scene):
         zac_room_sprite = SpriteComponent("zac_room", tint_color=(interior_brightness, interior_brightness, interior_brightness))
         self.zac_room.transform.scale = pygame.Vector2(1)  # Adjust scale as needed
         self.zac_room.transform.position = self.positions[1]
+        self.zac_room.transform.rotation = 180
         self.zac_room.addComponent(zac_room_sprite)
         self.add_actor(self.zac_room)
 
@@ -252,11 +262,19 @@ class GameScene(Scene):
         camera.transform.position = self.positions[1]
         self.add_actor(camera)
 
-        self.look_left_button = Button([0, Game().height//2-70], 50, 150, "<<<", font_size=24, on_click_callback=self.look_left)
-        self.look_right_button = Button([Game().width - 50, Game().height//2-70], 50, 150, ">>>", font_size=24, on_click_callback=self.look_right)
+        self.look_left_button = Button([0, Game().height//2-70], 50, 150, "<<<", font_size=24, 
+                                        on_start_hover_callback=self.on_hover_left, 
+                                        on_stop_hover_callback=self.on_stop_hover_left)
+        self.look_right_button = Button([Game().width - 50, Game().height//2-70], 50, 150, ">>>", font_size=24, 
+                                         on_start_hover_callback=self.on_hover_right, 
+                                         on_stop_hover_callback=self.on_stop_hover_right)
 
-        self.look_up_button = Button([Game().width//2-70, 0], 150, 50, "   ^^^", font_size=24, on_click_callback=self.look_up)
-        self.look_down_button = Button([Game().width//2-70, Game().height-100], 150, 50, "   vvv", font_size=24, on_click_callback=self.look_down)
+        self.look_up_button = Button([Game().width//2-70, 0], 150, 50, "   ^^^", font_size=24, 
+                                      on_start_hover_callback=self.on_hover_up, 
+                                      on_stop_hover_callback=self.on_stop_hover_up)
+        self.look_down_button = Button([Game().width//2-70-150, Game().height-100], 150, 50, "   vvv", font_size=24, 
+                                        on_start_hover_callback=self.on_hover_down, 
+                                        on_stop_hover_callback=self.on_stop_hover_down)
 
         self.lower_panel = Panel((0,430), Game().width, 100)
         self.time_label = Label([Game().width//2+200, 440], 1000, text=f"Time: ", font_size=24, color=(255, 255, 255))
@@ -278,7 +296,7 @@ class GameScene(Scene):
                 Game().load_scene("Jumpscare Garfield")
             self.asleep = True
             self.sleep_timer = 0
-            self.sleep_timer -= random.randint(1, 3)
+            self.sleep_timer -= random.uniform(1, 3)
             print("Sleeping...")
 
         self.sleep_button = Button((Game().width//2-100, 440), 200, 50, "Sleep", font_size=24, on_click_callback=_sleep)
@@ -303,8 +321,9 @@ class GameScene(Scene):
             if self.touch_o_meter >= self.touch_o_meter_max:
                 self.jack_noticed = False
                 self.jack_pos = 0
-                self.jack_move_timer = random.randint(self.calc_wait_time(*self.min_wait_time_params), self.calc_wait_time(*self.max_wait_time_params))
+                self.jack_move_timer = random.uniform(self.calc_wait_time(*self.min_wait_time_params), self.calc_wait_time(*self.max_wait_time_params))
                 AssetManager().getSound("yowch").play()
+                AssetManager().getSound("breath").stop()
 
         self.touch_jack_button = Button((Game().width//2, 440), 100, 50, "Touch Jack", font_size=24, on_click_callback=touch_jack)
         self.touch_jack_bar = ProgressBar((Game().width//2-110, 440), 100, 50, self.touch_o_meter, (255, 0, 0), (50, 50, 50))
@@ -315,6 +334,9 @@ class GameScene(Scene):
             self.flashlight_on = True
             self.zac_flashlight_move_threshold = random.uniform(self.zac_flashlight_move_threshold_min, self.zac_flashlight_move_threshold_max)
             AssetManager().getSound("flashlight_click").play()
+            if self.zac_pos == 0 and not self.seen_zac:
+                self.seen_zac = True
+                AssetManager().getSound("sting").play()
 
         def flashlight_off():
             self.flashlight_on = False
@@ -357,7 +379,8 @@ class GameScene(Scene):
 
         self.zac_move_timer -= delta_time
         if self.zac_move_timer <= 0:
-            self.zac_move_timer = random.randint(self.zac_min_move_timer, self.zac_max_move_timer)
+            self.zac_move_timer = random.uniform(self.zac_min_move_timer, self.zac_max_move_timer)
+            self.seen_zac = False
             self.zac_pos += 1
             if self.zac_pos == 1:
                 AssetManager().getSound("zac").play(-1)
@@ -375,6 +398,7 @@ class GameScene(Scene):
                     self.zac_pos = -1
                     AssetManager().getSound("vent_run").play()
                     self.zac_move_timer = random.uniform(self.zac_min_move_timer, self.zac_max_move_timer) + self.zac_flashlight_cooldown
+                    self.seen_zac = False
 
         self.garfield_sprite.enabled = self.garfield_on_bed
 
@@ -382,16 +406,22 @@ class GameScene(Scene):
             self.garfield_timer -= delta_time
             if self.garfield_timer <= 0:
                 self.garfield_on_bed = not self.garfield_on_bed
-                self.garfield_timer = random.randint(self.garfield_min_timer, self.garfield_max_timer)
+                self.garfield_timer = random.uniform(self.garfield_min_timer, self.garfield_max_timer)
 
         if self.time >= self.hour_length * 6:  # 6 AM
             Game().load_scene("Win")
 
         # Show or hide camera buttons based on position
+
         self.look_left_button.set_active(self.position > 0 and self.position < 3 and not self.asleep)
         self.look_right_button.set_active(self.position < 2 and not self.asleep)
         self.look_up_button.set_active(self.position == 1 and not self.asleep)
         self.look_down_button.set_active(self.position == 3 and not self.asleep)
+        
+        self.look_left_button.visible = not self.look_button_hover_states['left'] and self.position > 0 and self.position < 3 and not self.asleep
+        self.look_right_button.visible = not self.look_button_hover_states['right'] and self.position < 2 and not self.asleep
+        self.look_up_button.visible = not self.look_button_hover_states['up'] and self.position == 1 and not self.asleep
+        self.look_down_button.visible = not self.look_button_hover_states['down'] and self.position == 3 and not self.asleep
 
         if self.sleep > 40:
             self.sleep_button.text = "Can't sleep yet"
@@ -405,12 +435,12 @@ class GameScene(Scene):
             self.flashlight_button.text = "Flashlight (no power)"
 
         if self.position == 2 and self.jack_pos == -1 and not self.jack_noticed:
-            AssetManager().getSound(random.choice(["sting", "sting_2"])).play()
+            AssetManager().getSound("sting_2").play()
             self.jack_noticed = True
 
         self.ambient_timer -= delta_time
         if self.ambient_timer <= 0:
-            self.ambient_timer = random.randint(self.ambient_timer_min, self.ambient_timer_max)
+            self.ambient_timer = random.uniform(self.ambient_timer_min, self.ambient_timer_max)
             AssetManager().getSound(random.choice(["ambient_1", "ambient_2", "ambient_3", "ambient_4", "ambient_5"])).play()
 
         self.sleep_button.set_active(self.position == 0 and not self.asleep)
@@ -475,16 +505,20 @@ class GameScene(Scene):
         if self.jack_move_timer - (self.sound * self.passive_sound_aggression) <= 0:
             mintime = self.calc_wait_time(*self.min_wait_time_params)
             maxtime = self.calc_wait_time(*self.max_wait_time_params)
-            self.jack_move_timer = random.randint(mintime, maxtime) / (3 if self.power <= 0 else 1)
+            self.jack_move_timer = random.uniform(mintime, maxtime) / (3 if self.power <= 0 else 1)
             print(f"min wait time: {mintime}, max wait time: {maxtime}")
             if self.jack_pos == -1:
                 Game().load_scene("Jumpscare")
             else:
+                if random.randint(0, 5) == 0:
+                    AssetManager().getSound("jack_walk").play()
                 self.jack_pos += 1
                 if self.jack_pos > 2:
                     self.jack_pos = -1 if random.random() > 0.2 else random.choice([0, 1, 2])
                 if self.jack_pos == -1:
-                    self.jack_move_timer = random.randint(self.jack_jumpscare_timer_min, self.jack_jumpscare_timer_max)
+                    self.jack_move_timer = random.uniform(self.jack_jumpscare_timer_min, self.jack_jumpscare_timer_max)
+                    if random.randint(0, 3) == 0:
+                        AssetManager().getSound("breath").play(-1)
             print(f"Set wait time to {self.jack_move_timer:.2f} seconds")
 
         super().update(delta_time)
@@ -516,3 +550,46 @@ class GameScene(Scene):
         self.position = 1
         AssetManager().getSound("woosh").play()
         self.target_sound += self.move_sound
+        if self.flashlight_on:
+            self.flashlight_on = False
+            AssetManager().getSound("flashlight_click").play()
+
+    def on_hover_left(self):
+        """Called when mouse starts hovering over left button"""
+        if not self.look_button_hover_states['left']:
+            self.look_button_hover_states['left'] = True
+            self.look_left()
+
+    def on_stop_hover_left(self):
+        """Called when mouse stops hovering over left button"""
+        self.look_button_hover_states['left'] = False
+
+    def on_hover_right(self):
+        """Called when mouse starts hovering over right button"""
+        if not self.look_button_hover_states['right']:
+            self.look_button_hover_states['right'] = True
+            self.look_right()
+
+    def on_stop_hover_right(self):
+        """Called when mouse stops hovering over right button"""
+        self.look_button_hover_states['right'] = False
+
+    def on_hover_up(self):
+        """Called when mouse starts hovering over up button"""
+        if not self.look_button_hover_states['up']:
+            self.look_button_hover_states['up'] = True
+            self.look_up()
+
+    def on_stop_hover_up(self):
+        """Called when mouse stops hovering over up button"""
+        self.look_button_hover_states['up'] = False
+
+    def on_hover_down(self):
+        """Called when mouse starts hovering over down button"""
+        if not self.look_button_hover_states['down']:
+            self.look_button_hover_states['down'] = True
+            self.look_down()
+
+    def on_stop_hover_down(self):
+        """Called when mouse stops hovering over down button"""
+        self.look_button_hover_states['down'] = False

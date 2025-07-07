@@ -51,17 +51,10 @@ def optimize_game_startup():
         print("Cython optimizations not available - using Numba JIT optimizations")
     
 def main(): 
-    """Run optimized main"""
-    print("Starting Touching Jack 2: The Remake - The Sequel (Complete Edition)")
-    print("Optimized Edition with Advanced Performance Features")
-    
-    start_time = time.time()
-    
-    # Initialize performance optimizations
-    optimize_game_startup()
-    
-    # Create game instance with optimized settings
-    game: Game = Game(640, 480, "Touching Jack 2: The Remake - The Sequel (Complete Edition) [OPTIMIZED]")
+
+    """Run main"""
+    game: Game = Game(640, 480, "Touching Jack 2: The Remake - The Sequel (Complete Edition)")
+    # game.merge_ui_with_scene = True
 
     # Initialize asset manager with preloading
     asset_manager = AssetManager()

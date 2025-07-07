@@ -20,16 +20,19 @@ class MainMenuScene(Scene):
         print("Entering Main Menu Scene")
         Game().add_postprocess_shader(chromatic_aberration.chromatic_aberration_shader)
         Game().clear_colour = (0, 0, 0, 255)
+        Game().merge_ui_with_scene = True
 
         self.panel = Panel((100, 100), 400, 300)
 
         self.title_label = Label((70, 20), 500, "Touching Jack 2: The Remake The Sequel (Complete Edition)", font_size=40, color=(255, 255, 255))
         self.start_button = Button((50, 200), 200, 50, "Start Game", font_size=24, on_click_callback=self.start_game)
         self.toggle_fullscreen_button = Button((50, 270), 200, 50, "Toggle Fullscreen", font_size=24, on_click_callback=Game().toggle_fullscreen)
-        self.quit_button = Button((50, 340), 200, 50, "Quit", font_size=24, on_click_callback=self.quit_game)
+        self.use_old_ui_button = Button((50, 340), 200, 50, "Use old UI system (slower)", font_size=24, on_click_callback=Game().toggle_ui_rendering_mode)
+        self.quit_button = Button((50, 340+70), 200, 50, "Quit", font_size=24, on_click_callback=self.quit_game)
 
         self.ui_manager.add_element(self.start_button)
         self.ui_manager.add_element(self.toggle_fullscreen_button)
+        self.ui_manager.add_element(self.use_old_ui_button)
         self.ui_manager.add_element(self.quit_button)
         self.ui_manager.add_element(self.title_label)
 
@@ -56,6 +59,7 @@ class MainMenuScene(Scene):
     def on_exit(self):
         print("Exiting Main Menu Scene")
         pygame.mixer.music.stop()
+        Game().merge_ui_with_scene = False
         # Game().remove_postprocess_shader(chromatic_aberration.chromatic_aberration_shader)
 
     def handle_event(self, event):
@@ -63,7 +67,7 @@ class MainMenuScene(Scene):
             if event.key == pygame.K_F4:
                 Game().toggle_fullscreen()
             if event.key == pygame.K_ESCAPE:
-                Game().load_scene("MainMenu")
+                Game().quit()
         return super().handle_event(event)
 
     def start_game(self):
