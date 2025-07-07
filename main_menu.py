@@ -19,6 +19,7 @@ class MainMenuScene(Scene):
     def on_enter(self):
         print("Entering Main Menu Scene")
         Game().add_postprocess_shader(chromatic_aberration.chromatic_aberration_shader)
+        Game().clear_colour = (0, 0, 0, 255)
 
         self.panel = Panel((100, 100), 400, 300)
 
@@ -38,10 +39,17 @@ class MainMenuScene(Scene):
         self.ui_manager.add_element(FPSCounter())
 
         background = Actor("background")
-        sprite = AnimationComponent(AssetManager().sliceSpritesheet("static_spritesheet", 640, 480))
-        sprite.tint = (100, 100, 100)
+        background.transform.position = pygame.Vector2(640//2, 480//2)
+        sprite = SpriteComponent("title")
+        sprite.tint_color = (100, 100, 100)
         background.addComponent(sprite)
         self.add_actor(background)
+
+        static = Actor("static")
+        sprite = AnimationComponent(AssetManager().sliceSpritesheet("static_spritesheet", 640, 480))
+        sprite.tint = (100, 100, 100, 100)
+        static.addComponent(sprite)
+        self.add_actor(static)
 
         pygame.mixer.music.load("assets/sounds/ambient_menu.mp3")
         pygame.mixer.music.play(-1)

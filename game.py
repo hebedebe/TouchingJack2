@@ -30,7 +30,8 @@ class GameScene(Scene):
         self.positions = [
             pygame.Vector2(-640, 0),  # Left position
             pygame.Vector2(0, 0),     # Middle position
-            pygame.Vector2(640, 0)    # Right position
+            pygame.Vector2(640, 0),    # Right position
+            pygame.Vector2(0, -480)    # Up position
         ]
         self.monitor_on = False
         self.current_camera = 0
@@ -74,6 +75,8 @@ class GameScene(Scene):
 
         self.power = 100
         self.power_drain_rate = 1.2
+        self.flashlight_power_drain_rate = 0.5
+        self.flashlight_on = False
 
         self.time = 0
         self.hour_length = 60  # Length of an hour in seconds
@@ -107,6 +110,27 @@ class GameScene(Scene):
         outside.transform.rotation = 90
         outside.addComponent(outside_sprite)
         self.add_actor(outside)
+
+        ceiling_darkness = Actor("ceiling_darkness")
+        ceiling_sprite = SpriteComponent("black_square", tint_color=(interior_brightness, interior_brightness, interior_brightness))
+        ceiling_darkness.transform.scale = pygame.Vector2(1)  # Adjust scale as needed
+        ceiling_darkness.transform.position = self.positions[3]
+        ceiling_darkness.addComponent(ceiling_sprite)
+        self.add_actor(ceiling_darkness)
+
+        # ceiling_zac = Actor("ceiling_zac")
+        # ceiling_zac_sprite = SpriteComponent("ceiling_zac", tint_color=(interior_brightness, interior_brightness, interior_brightness))
+        # ceiling_zac.transform.scale = pygame.Vector2(1)  # Adjust scale as needed
+        # ceiling_zac.transform.position = self.positions[3]
+        # ceiling_zac.addComponent(ceiling_zac_sprite)
+        # self.add_actor(ceiling_zac)
+
+        ceiling = Actor("ceiling")
+        ceiling_sprite = SpriteComponent("ceiling", tint_color=(interior_brightness, interior_brightness, interior_brightness))
+        ceiling.transform.scale = pygame.Vector2(1)  # Adjust scale as needed
+        ceiling.transform.position = self.positions[3]
+        ceiling.addComponent(ceiling_sprite)
+        self.add_actor(ceiling)
 
         monitor = Actor("monitor")
         monitor_sprite = SpriteComponent("monitor", tint_color=(interior_brightness, interior_brightness, interior_brightness))
@@ -198,6 +222,10 @@ class GameScene(Scene):
 
         self.look_left_button = Button([0, Game().height//2-70], 50, 150, "<<<", font_size=24, on_click_callback=self.look_left)
         self.look_right_button = Button([Game().width - 50, Game().height//2-70], 50, 150, ">>>", font_size=24, on_click_callback=self.look_right)
+
+        self.look_up_button = Button([Game().width//2-70, 0], 150, 50, "   ^^^", font_size=24, on_click_callback=self.look_up)
+        self.look_down_button = Button([Game().width//2-70, Game().height-100], 150, 50, "   vvv", font_size=24, on_click_callback=self.look_down)
+
         self.lower_panel = Panel((0,430), Game().width, 100)
         self.time_label = Label([Game().width//2+200, 440], 1000, text=f"Time: ", font_size=24, color=(255, 255, 255))
         self.sound_label = Label([Game().width//2+140, 460], 1000, text=f"Sound: ", font_size=24, color=(255, 255, 255))
@@ -237,7 +265,7 @@ class GameScene(Scene):
         self.previous_cam_button = Button((Game().width//2+55, 440), 50, 50, ">", font_size=24, on_click_callback=next_cam)
 
         def touch_jack():
-            self.touch_o_meter += 0.07
+            self.touch_o_meter += 0.09
             AssetManager().getSound("squish").play()
             self.touch_o_meter = min(self.touch_o_meter, self.touch_o_meter_max+0.05)
             if self.touch_o_meter >= self.touch_o_meter_max:
@@ -246,9 +274,20 @@ class GameScene(Scene):
                 self.jack_move_timer = random.randint(self.calc_wait_time(*self.min_wait_time_params), self.calc_wait_time(*self.max_wait_time_params))
                 AssetManager().getSound("yowch").play()
 
-
         self.touch_jack_button = Button((Game().width//2, 440), 100, 50, "Touch Jack", font_size=24, on_click_callback=touch_jack)
         self.touch_jack_bar = ProgressBar((Game().width//2-110, 440), 100, 50, self.touch_o_meter, (255, 0, 0), (50, 50, 50))
+
+        def flashlight_on():
+            if self.power <= 0:
+                return
+            self.flashlight_on = True
+            AssetManager().getSound("flashlight_click").play()
+
+        def flashlight_off():
+            self.flashlight_on = False
+            AssetManager().getSound("flashlight_click").play()
+
+        self.flashlight_button = Button((Game().width//2, 440), 100, 50, "Flashlight", font_size=24, on_click_callback=flashlight_on, on_release_callback=flashlight_off)
 
         self.lower_panel.add_child(self.sleep_button)
         self.lower_panel.add_child(self.next_cam_button)
@@ -259,6 +298,8 @@ class GameScene(Scene):
         self.look_left_button.visible = False
         self.ui_manager.add_element(self.look_left_button)
         self.ui_manager.add_element(self.look_right_button)
+        self.ui_manager.add_element(self.look_up_button)
+        self.ui_manager.add_element(self.look_down_button)
         self.ui_manager.add_element(self.lower_panel)
         self.ui_manager.add_element(FPSCounter((0,20)))
 
@@ -285,8 +326,10 @@ class GameScene(Scene):
             Game().load_scene("Win")
 
         # Show or hide camera buttons based on position
-        self.look_left_button.set_active(self.position > 0 and not self.asleep)
+        self.look_left_button.set_active(self.position > 0 and self.position < 3 and not self.asleep)
         self.look_right_button.set_active(self.position < 2 and not self.asleep)
+        self.look_up_button.set_active(self.position == 1 and not self.asleep)
+        self.look_down_button.set_active(self.position == 3 and not self.asleep)
 
         if self.sleep > 40:
             self.sleep_button.text = "Can't sleep yet"
@@ -328,8 +371,7 @@ class GameScene(Scene):
 
         self.sleep_overlay.enabled = self.asleep
 
-        if self.monitor_on:
-            self.power -= delta_time * self.power_drain_rate
+        self.power -= delta_time * (self.power_drain_rate * self.monitor_on + self.flashlight_power_drain_rate * self.flashlight_on)
 
         if self.asleep:
             self.sleep_timer += delta_time
@@ -395,5 +437,15 @@ class GameScene(Scene):
 
     def look_right(self):
         self.position = min(2, self.position + 1)
+        AssetManager().getSound("woosh").play()
+        self.target_sound += self.move_sound
+
+    def look_up(self):
+        self.position = 3
+        AssetManager().getSound("woosh").play()
+        self.target_sound += self.move_sound
+
+    def look_down(self):
+        self.position = 1
         AssetManager().getSound("woosh").play()
         self.target_sound += self.move_sound

@@ -3,11 +3,12 @@ from engine.core.ui import UIElement
 from engine.core.asset_manager import AssetManager
 
 class Button(UIElement):
-    def __init__(self, position, width, height, text, font=None, font_size=24, on_click_callback=None, on_start_hover_callback=None, on_stop_hover_callback=None):
+    def __init__(self, position, width, height, text, font=None, font_size=24, on_click_callback=None, on_release_callback=None, on_start_hover_callback=None, on_stop_hover_callback=None):
         super().__init__(position, width, height)
         self.text = text
         
         self.on_click_callback = on_click_callback
+        self.on_release_callback = on_release_callback
         self.on_start_hover_callback = on_start_hover_callback
         self.on_stop_hover_callback = on_stop_hover_callback
 
@@ -47,3 +48,7 @@ class Button(UIElement):
         elif event.type == pygame.MOUSEBUTTONDOWN and self.rect.collidepoint(event.pos):
             if self.on_click_callback:
                 self.on_click_callback()
+
+        elif event.type == pygame.MOUSEBUTTONUP and self.rect.collidepoint(event.pos):
+            if self.on_release_callback:
+                self.on_release_callback()

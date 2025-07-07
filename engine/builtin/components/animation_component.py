@@ -7,7 +7,7 @@ from ...core.world.component import Component
 from ...animation.animation import Animation
 
 class AnimationComponent(Component):
-    def __init__(self, frames, tint=(255, 255, 255)):
+    def __init__(self, frames, tint=(255, 255, 255, 255)):
         super().__init__()
         self.animation = Animation(frames)
         self.tint = tint
@@ -26,6 +26,6 @@ class AnimationComponent(Component):
     def render(self):
         super().render()
         frame = copy(self.currentFrame)
-        if (self.tint != (255, 255, 255)):
+        if (self.tint != (255, 255, 255, 255)):
             frame.fill(self.tint, special_flags=pygame.BLEND_MULT)
         Game().buffer.blit(frame, self.actor.screenPosition)
