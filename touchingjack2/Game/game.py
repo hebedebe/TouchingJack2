@@ -1,3 +1,4 @@
+from time import time
 import pygame
 from copy import copy
 import math
@@ -86,6 +87,8 @@ class GameScene(Scene):
 
         self.max_wait_time_params = [40, 5]
         self.min_wait_time_params = [16, 1.38]
+
+        random.seed(time())
 
     def calc_wait_time(self, base_time, aggression):
         return max(4,int(base_time - aggression*(self.time/self.hour_length) - self.sound * self.sound_aggression))
