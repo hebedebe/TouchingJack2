@@ -43,8 +43,8 @@ class GameScene(Scene):
         self.jack_locations = [(20, 70), (0, 0), (0, 0), (640,0)]
         self.jack_sizes = [0.05, 0.1, 0.1, 0.9]
         self.jack_move_timer = random.randint(20, 30)
-        self.jack_jumpscare_timer_min = 5
-        self.jack_jumpscare_timer_max = 6
+        self.jack_jumpscare_timer_min = 6.5
+        self.jack_jumpscare_timer_max = 8
         self.jack_noticed = False
 
         self.garfield_active_time = 2 #in hours
@@ -78,7 +78,7 @@ class GameScene(Scene):
         self.monitor_turn_on_sound = 1
         self.move_sound = 0.7
         self.sleep_sound = 0.2
-        self.switch_camera_sound = 1
+        self.switch_camera_sound = 0.5
         self.sound_aggression = 2
         self.passive_sound_aggression = 1
         self.sound_fade_rate = 1
@@ -189,9 +189,11 @@ class GameScene(Scene):
             if self.monitor_on:
                 self.power -= 1
                 power_button_start_audio.play()
+                AssetManager().getSound("computer_hum").play(-1)
                 self.target_sound += self.monitor_turn_on_sound
             else:
                 power_button_start_audio.stop()
+                AssetManager().getSound("computer_hum").stop()
         power_button_click.set_click_callback(lambda: toggle_monitor())
         power_button.transform.scale = pygame.Vector2(0.03)  # Adjust scale as needed
         power_button.transform.position = pygame.Vector2(self.positions[1].x+125, 102)
@@ -398,6 +400,7 @@ class GameScene(Scene):
 
         if self.power <= 0:
             self.monitor_on = False
+            AssetManager().getSound("computer_hum").stop()
             self.flashlight_on = False
             self.flashlight_button.text = "Flashlight (no power)"
 
