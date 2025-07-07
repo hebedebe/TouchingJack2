@@ -26,10 +26,12 @@ class MainMenuScene(Scene):
         self.title_label = Label((70, 20), 500, "Touching Jack 2: The Remake The Sequel (Complete Edition)", font_size=40, color=(255, 255, 255))
         self.start_button = Button((50, 200), 200, 50, "Start Game", font_size=24, on_click_callback=self.start_game)
         self.toggle_fullscreen_button = Button((50, 270), 200, 50, "Toggle Fullscreen", font_size=24, on_click_callback=Game().toggle_fullscreen)
-        self.quit_button = Button((50, 340), 200, 50, "Quit", font_size=24, on_click_callback=self.quit_game)
+        self.use_old_ui_button = Button((50, 340), 200, 50, "Use old UI system (slower)", font_size=24, on_click_callback=Game().toggle_ui_rendering_mode)
+        self.quit_button = Button((50, 340+70), 200, 50, "Quit", font_size=24, on_click_callback=self.quit_game)
 
         self.ui_manager.add_element(self.start_button)
         self.ui_manager.add_element(self.toggle_fullscreen_button)
+        self.ui_manager.add_element(self.use_old_ui_button)
         self.ui_manager.add_element(self.quit_button)
         self.ui_manager.add_element(self.title_label)
 

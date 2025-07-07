@@ -96,6 +96,16 @@ class Game:
         mode = "Efficient GPU-based" if self.use_efficient_ui else "Legacy CPU-based"
         print(f"UI rendering mode switched to: {mode}")
         return self.use_efficient_ui
+        
+    def get_render_stats(self):
+        """Get rendering performance statistics."""
+        return {
+            'fps': self.clock.get_fps(),
+            'delta_time': self.delta_time,
+            'ui_mode': 'Efficient' if self.use_efficient_ui else 'Legacy',
+            'postprocess_shaders': len(self.postprocess_chain),
+            'resolution': f"{self.width}x{self.height}"
+        }
 
 #region OpenGL
 
