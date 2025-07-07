@@ -60,7 +60,7 @@ class GameScene(Scene):
         self.zac_pos = -1  # -1 is not present, 0 is in vent and 1 is in room
         self.zac_min_move_timer = 10
         self.zac_max_move_timer = 30
-        self.zac_move_timer = random.uniform(self.zac_min_move_timer, self.zac_max_move_timer) + 50
+        self.zac_move_timer = random.uniform(self.zac_min_move_timer, self.zac_max_move_timer) + 20
         self.zac_flashlight_move_threshold_min = 3
         self.zac_flashlight_move_threshold_max = 6
         self.zac_flashlight_move_threshold = random.uniform(self.zac_flashlight_move_threshold_min, self.zac_flashlight_move_threshold_max)
