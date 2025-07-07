@@ -237,7 +237,7 @@ class GameScene(Scene):
         self.previous_cam_button = Button((Game().width//2+55, 440), 50, 50, ">", font_size=24, on_click_callback=next_cam)
 
         def touch_jack():
-            self.touch_o_meter += 0.1
+            self.touch_o_meter += 0.07
             AssetManager().getSound("squish").play()
             self.touch_o_meter = min(self.touch_o_meter, self.touch_o_meter_max+0.05)
             if self.touch_o_meter >= self.touch_o_meter_max:
@@ -373,7 +373,7 @@ class GameScene(Scene):
             else:
                 self.jack_pos += 1
                 if self.jack_pos > 2:
-                    self.jack_pos = -1 if random.random() < 0.5 + self.time/(6*self.hour_length) else random.choice([0, 1, 2])
+                    self.jack_pos = -1 if random.random() > 0.2 else random.choice([0, 1, 2])
                 if self.jack_pos == -1:
                     self.jack_move_timer = random.randint(self.jack_jumpscare_timer_min, self.jack_jumpscare_timer_max)
             print(f"Set wait time to {self.jack_move_timer:.2f} seconds")
