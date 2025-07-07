@@ -103,6 +103,14 @@ class GameScene(Scene):
         self.max_wait_time_params = [40, 5]
         self.min_wait_time_params = [16, 1.38]
 
+        # Track hover states to prevent repeated movement on single hover
+        self.look_button_hover_states = {
+            'left': False,
+            'right': False, 
+            'up': False,
+            'down': False
+        }
+
     def calc_wait_time(self, base_time, aggression):
         return max(4,int(base_time - aggression*(self.time/self.hour_length) - self.sound * self.sound_aggression))
 
@@ -252,11 +260,19 @@ class GameScene(Scene):
         camera.transform.position = self.positions[1]
         self.add_actor(camera)
 
-        self.look_left_button = Button([0, Game().height//2-70], 50, 150, "<<<", font_size=24, on_click_callback=self.look_left)
-        self.look_right_button = Button([Game().width - 50, Game().height//2-70], 50, 150, ">>>", font_size=24, on_click_callback=self.look_right)
+        self.look_left_button = Button([0, Game().height//2-70], 50, 150, "<<<", font_size=24, 
+                                        on_start_hover_callback=self.on_hover_left, 
+                                        on_stop_hover_callback=self.on_stop_hover_left)
+        self.look_right_button = Button([Game().width - 50, Game().height//2-70], 50, 150, ">>>", font_size=24, 
+                                         on_start_hover_callback=self.on_hover_right, 
+                                         on_stop_hover_callback=self.on_stop_hover_right)
 
-        self.look_up_button = Button([Game().width//2-70, 0], 150, 50, "   ^^^", font_size=24, on_click_callback=self.look_up)
-        self.look_down_button = Button([Game().width//2-70, Game().height-100], 150, 50, "   vvv", font_size=24, on_click_callback=self.look_down)
+        self.look_up_button = Button([Game().width//2-70, 0], 150, 50, "   ^^^", font_size=24, 
+                                      on_start_hover_callback=self.on_hover_up, 
+                                      on_stop_hover_callback=self.on_stop_hover_up)
+        self.look_down_button = Button([Game().width//2-70-150, Game().height-100], 150, 50, "   vvv", font_size=24, 
+                                        on_start_hover_callback=self.on_hover_down, 
+                                        on_stop_hover_callback=self.on_stop_hover_down)
 
         self.lower_panel = Panel((0,430), Game().width, 100)
         self.time_label = Label([Game().width//2+200, 440], 1000, text=f"Time: ", font_size=24, color=(255, 255, 255))
@@ -388,10 +404,16 @@ class GameScene(Scene):
             Game().load_scene("Win")
 
         # Show or hide camera buttons based on position
+
         self.look_left_button.set_active(self.position > 0 and self.position < 3 and not self.asleep)
         self.look_right_button.set_active(self.position < 2 and not self.asleep)
         self.look_up_button.set_active(self.position == 1 and not self.asleep)
         self.look_down_button.set_active(self.position == 3 and not self.asleep)
+        
+        self.look_left_button.visible = not self.look_button_hover_states['left'] and self.position > 0 and self.position < 3 and not self.asleep
+        self.look_right_button.visible = not self.look_button_hover_states['right'] and self.position < 2 and not self.asleep
+        self.look_up_button.visible = not self.look_button_hover_states['up'] and self.position == 1 and not self.asleep
+        self.look_down_button.visible = not self.look_button_hover_states['down'] and self.position == 3 and not self.asleep
 
         if self.sleep > 40:
             self.sleep_button.text = "Can't sleep yet"
@@ -516,3 +538,43 @@ class GameScene(Scene):
         self.position = 1
         AssetManager().getSound("woosh").play()
         self.target_sound += self.move_sound
+
+    def on_hover_left(self):
+        """Called when mouse starts hovering over left button"""
+        if not self.look_button_hover_states['left']:
+            self.look_button_hover_states['left'] = True
+            self.look_left()
+
+    def on_stop_hover_left(self):
+        """Called when mouse stops hovering over left button"""
+        self.look_button_hover_states['left'] = False
+
+    def on_hover_right(self):
+        """Called when mouse starts hovering over right button"""
+        if not self.look_button_hover_states['right']:
+            self.look_button_hover_states['right'] = True
+            self.look_right()
+
+    def on_stop_hover_right(self):
+        """Called when mouse stops hovering over right button"""
+        self.look_button_hover_states['right'] = False
+
+    def on_hover_up(self):
+        """Called when mouse starts hovering over up button"""
+        if not self.look_button_hover_states['up']:
+            self.look_button_hover_states['up'] = True
+            self.look_up()
+
+    def on_stop_hover_up(self):
+        """Called when mouse stops hovering over up button"""
+        self.look_button_hover_states['up'] = False
+
+    def on_hover_down(self):
+        """Called when mouse starts hovering over down button"""
+        if not self.look_button_hover_states['down']:
+            self.look_button_hover_states['down'] = True
+            self.look_down()
+
+    def on_stop_hover_down(self):
+        """Called when mouse stops hovering over down button"""
+        self.look_button_hover_states['down'] = False
