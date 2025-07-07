@@ -49,6 +49,7 @@ class Game:
         
         # 🆕 Performance settings
         self.use_efficient_ui = True  # Toggle between efficient and legacy UI rendering
+        self.merge_ui_with_scene = False
 
         self.scenes = {}
         self.current_scene = None
@@ -319,7 +320,9 @@ class Game:
 
     def render(self):
         """Main render method - uses efficient or legacy rendering based on toggle."""
-        if self.use_efficient_ui:
+        if self.merge_ui_with_scene:
+            self.render_combined()
+        elif self.use_efficient_ui:
             self.render_efficient()
         else:
             self.render_legacy()
@@ -370,6 +373,57 @@ class Game:
         self.ui_color.use(location=1)  # UI layer
         
         vao = self.get_quad_vao(composite_shader)
+        vao.render()
+
+    def render_combined(self):
+        """Efficient GPU-only rendering method."""
+        # 🧱 Step 1: Render scene to framebuffer
+        self.scene_fbo.use()
+        self.buffer.fill(self.clear_colour)  # Clear buffer with black
+        self.render_scene()
+        self.render_ui()  # Render UI to the buffer
+
+        # Upload scene to texture
+        buffer_data = pygame.image.tobytes(self.buffer, 'RGBA', True)
+        self.main_color.write(buffer_data)
+
+        # 🧱 Step 2: Apply post-processing chain (GPU-only)
+        src_tex = self.main_color
+        for i, _shader in enumerate(self.postprocess_chain):
+            shader = _shader.get()
+            
+            # Choose destination framebuffer (ping-pong between textures)
+            dst_fbo = self.ping_fbo if i % 2 == 0 else self.pong_fbo
+            dst_fbo.use()
+            self.ctx.clear(0.0, 0.0, 0.0, 1.0)  # Clear with black
+
+            shader.program['screen_texture'].value = 0
+            src_tex.use(location=0)
+
+            vao = self.get_quad_vao(shader)
+            vao.render()
+
+            # Next input is current output
+            src_tex = self.ping_tex if i % 2 == 0 else self.pong_tex
+        
+        # 🧱 Step 4: Composite scene + UI and render to screen (GPU-only)
+        self.ctx.screen.use()
+        self.ctx.clear(0.0, 0.0, 0.0, 1.0)
+        
+        # composite_shader = self.get_shader('ui_composite').get()
+        # composite_shader.program['scene_texture'].value = 0
+        # composite_shader.program['ui_texture'].value = 1
+        
+        # Bind both textures
+        # self.ui_color.use(location=1)  # UI layer
+        
+
+        self.ctx.screen.use()
+        default_shader = self.get_shader('default').get()
+        default_shader.program['screen_texture'].value = 0
+        src_tex.use(location=0)        # Post-processed scene
+        
+        vao = self.get_quad_vao(self.get_shader('default'))
         vao.render()
 
     def run(self):

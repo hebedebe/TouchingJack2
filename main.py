@@ -20,6 +20,7 @@ from win import WinScene
 def main(): 
     """Run main"""
     game: Game = Game(640, 480, "Touching Jack 2: The Remake - The Sequel (Complete Edition)")
+    # game.merge_ui_with_scene = True
 
     AssetManager().autoloadAssets()
     AssetManager().setDefaultFont("vcrosdmono")
