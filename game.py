@@ -42,7 +42,7 @@ class GameScene(Scene):
         self.jack_positions = ["jack_cam_1", "jack_cam_2", "jack_cam_3", "jack_outside"]
         self.jack_locations = [(20, 70), (0, 0), (0, 0), (640,0)]
         self.jack_sizes = [0.05, 0.1, 0.1, 0.9]
-        self.jack_move_timer = random.randint(20, 30)
+        self.jack_move_timer = random.uniform(20, 30)
         self.jack_jumpscare_timer_min = 6.5
         self.jack_jumpscare_timer_max = 8
         self.jack_noticed = False
@@ -55,12 +55,12 @@ class GameScene(Scene):
 
         self.ambient_timer_min = 20
         self.ambient_timer_max = 60
-        self.ambient_timer = random.randint(self.ambient_timer_min, self.ambient_timer_max)
+        self.ambient_timer = random.uniform(self.ambient_timer_min, self.ambient_timer_max)
 
         self.zac_pos = -1  # -1 is not present, 0 is in vent and 1 is in room
         self.zac_min_move_timer = 10
         self.zac_max_move_timer = 30
-        self.zac_move_timer = random.randint(self.zac_min_move_timer, self.zac_max_move_timer) + 50
+        self.zac_move_timer = random.uniform(self.zac_min_move_timer, self.zac_max_move_timer) + 50
         self.zac_flashlight_move_threshold_min = 3
         self.zac_flashlight_move_threshold_max = 6
         self.zac_flashlight_move_threshold = random.uniform(self.zac_flashlight_move_threshold_min, self.zac_flashlight_move_threshold_max)
@@ -278,7 +278,7 @@ class GameScene(Scene):
                 Game().load_scene("Jumpscare Garfield")
             self.asleep = True
             self.sleep_timer = 0
-            self.sleep_timer -= random.randint(1, 3)
+            self.sleep_timer -= random.uniform(1, 3)
             print("Sleeping...")
 
         self.sleep_button = Button((Game().width//2-100, 440), 200, 50, "Sleep", font_size=24, on_click_callback=_sleep)
@@ -303,7 +303,7 @@ class GameScene(Scene):
             if self.touch_o_meter >= self.touch_o_meter_max:
                 self.jack_noticed = False
                 self.jack_pos = 0
-                self.jack_move_timer = random.randint(self.calc_wait_time(*self.min_wait_time_params), self.calc_wait_time(*self.max_wait_time_params))
+                self.jack_move_timer = random.uniform(self.calc_wait_time(*self.min_wait_time_params), self.calc_wait_time(*self.max_wait_time_params))
                 AssetManager().getSound("yowch").play()
 
         self.touch_jack_button = Button((Game().width//2, 440), 100, 50, "Touch Jack", font_size=24, on_click_callback=touch_jack)
@@ -357,7 +357,7 @@ class GameScene(Scene):
 
         self.zac_move_timer -= delta_time
         if self.zac_move_timer <= 0:
-            self.zac_move_timer = random.randint(self.zac_min_move_timer, self.zac_max_move_timer)
+            self.zac_move_timer = random.uniform(self.zac_min_move_timer, self.zac_max_move_timer)
             self.zac_pos += 1
             if self.zac_pos == 1:
                 AssetManager().getSound("zac").play(-1)
@@ -382,7 +382,7 @@ class GameScene(Scene):
             self.garfield_timer -= delta_time
             if self.garfield_timer <= 0:
                 self.garfield_on_bed = not self.garfield_on_bed
-                self.garfield_timer = random.randint(self.garfield_min_timer, self.garfield_max_timer)
+                self.garfield_timer = random.uniform(self.garfield_min_timer, self.garfield_max_timer)
 
         if self.time >= self.hour_length * 6:  # 6 AM
             Game().load_scene("Win")
@@ -410,7 +410,7 @@ class GameScene(Scene):
 
         self.ambient_timer -= delta_time
         if self.ambient_timer <= 0:
-            self.ambient_timer = random.randint(self.ambient_timer_min, self.ambient_timer_max)
+            self.ambient_timer = random.uniform(self.ambient_timer_min, self.ambient_timer_max)
             AssetManager().getSound(random.choice(["ambient_1", "ambient_2", "ambient_3", "ambient_4", "ambient_5"])).play()
 
         self.sleep_button.set_active(self.position == 0 and not self.asleep)
@@ -475,7 +475,7 @@ class GameScene(Scene):
         if self.jack_move_timer - (self.sound * self.passive_sound_aggression) <= 0:
             mintime = self.calc_wait_time(*self.min_wait_time_params)
             maxtime = self.calc_wait_time(*self.max_wait_time_params)
-            self.jack_move_timer = random.randint(mintime, maxtime) / (3 if self.power <= 0 else 1)
+            self.jack_move_timer = random.uniform(mintime, maxtime) / (3 if self.power <= 0 else 1)
             print(f"min wait time: {mintime}, max wait time: {maxtime}")
             if self.jack_pos == -1:
                 Game().load_scene("Jumpscare")
@@ -484,7 +484,7 @@ class GameScene(Scene):
                 if self.jack_pos > 2:
                     self.jack_pos = -1 if random.random() > 0.2 else random.choice([0, 1, 2])
                 if self.jack_pos == -1:
-                    self.jack_move_timer = random.randint(self.jack_jumpscare_timer_min, self.jack_jumpscare_timer_max)
+                    self.jack_move_timer = random.uniform(self.jack_jumpscare_timer_min, self.jack_jumpscare_timer_max)
             print(f"Set wait time to {self.jack_move_timer:.2f} seconds")
 
         super().update(delta_time)
