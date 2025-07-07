@@ -41,7 +41,7 @@ class GameScene(Scene):
         self.jack_pos = 0  # -1 means outside, 0 means cam_1, 1 means cam_2, 2 means cam_3
         self.jack_positions = ["jack_cam_1", "jack_cam_2", "jack_cam_3", "jack_outside"]
         self.jack_locations = [(20, 70), (0, 0), (0, 0), (640,0)]
-        self.jack_sizes = [0.05, 0.1, 0.1, 0.9]
+        self.jack_sizes = [0.05, 0.1, 0.1, 0.67]
         self.jack_move_timer = random.uniform(20, 30)
         self.jack_jumpscare_timer_min = 6.5
         self.jack_jumpscare_timer_max = 8
@@ -68,6 +68,7 @@ class GameScene(Scene):
         self.zac_ambient_noise = 2.5
         self.zac_flashlight_cooldown = 20
         self.zac_appearance_cooldown = 35
+        self.seen_zac = False
 
         self._sound = 0
         self.sound = 0
@@ -188,7 +189,7 @@ class GameScene(Scene):
         power_button_sprite = SpriteComponent("power_button", tint_color=(interior_brightness, interior_brightness, interior_brightness))
         power_button_click = ClickableComponent(22, 22, (-22, 0))
         power_button_click_audio = AudioComponent("click")
-        power_button_start_audio = AudioComponent("startup", volume=2)
+        power_button_start_audio = AudioComponent("startup", volume=0.2)
         def toggle_monitor():
             if (self.power <= 0):
                 return
@@ -248,6 +249,7 @@ class GameScene(Scene):
         zac_room_sprite = SpriteComponent("zac_room", tint_color=(interior_brightness, interior_brightness, interior_brightness))
         self.zac_room.transform.scale = pygame.Vector2(1)  # Adjust scale as needed
         self.zac_room.transform.position = self.positions[1]
+        self.zac_room.transform.rotation = 180
         self.zac_room.addComponent(zac_room_sprite)
         self.add_actor(self.zac_room)
 
@@ -321,6 +323,7 @@ class GameScene(Scene):
                 self.jack_pos = 0
                 self.jack_move_timer = random.uniform(self.calc_wait_time(*self.min_wait_time_params), self.calc_wait_time(*self.max_wait_time_params))
                 AssetManager().getSound("yowch").play()
+                AssetManager().getSound("breath").stop()
 
         self.touch_jack_button = Button((Game().width//2, 440), 100, 50, "Touch Jack", font_size=24, on_click_callback=touch_jack)
         self.touch_jack_bar = ProgressBar((Game().width//2-110, 440), 100, 50, self.touch_o_meter, (255, 0, 0), (50, 50, 50))
@@ -331,6 +334,9 @@ class GameScene(Scene):
             self.flashlight_on = True
             self.zac_flashlight_move_threshold = random.uniform(self.zac_flashlight_move_threshold_min, self.zac_flashlight_move_threshold_max)
             AssetManager().getSound("flashlight_click").play()
+            if self.zac_pos == 0 and not self.seen_zac:
+                self.seen_zac = True
+                AssetManager().getSound("sting").play()
 
         def flashlight_off():
             self.flashlight_on = False
@@ -374,6 +380,7 @@ class GameScene(Scene):
         self.zac_move_timer -= delta_time
         if self.zac_move_timer <= 0:
             self.zac_move_timer = random.uniform(self.zac_min_move_timer, self.zac_max_move_timer)
+            self.seen_zac = False
             self.zac_pos += 1
             if self.zac_pos == 1:
                 AssetManager().getSound("zac").play(-1)
@@ -391,6 +398,7 @@ class GameScene(Scene):
                     self.zac_pos = -1
                     AssetManager().getSound("vent_run").play()
                     self.zac_move_timer = random.uniform(self.zac_min_move_timer, self.zac_max_move_timer) + self.zac_flashlight_cooldown
+                    self.seen_zac = False
 
         self.garfield_sprite.enabled = self.garfield_on_bed
 
@@ -427,7 +435,7 @@ class GameScene(Scene):
             self.flashlight_button.text = "Flashlight (no power)"
 
         if self.position == 2 and self.jack_pos == -1 and not self.jack_noticed:
-            AssetManager().getSound(random.choice(["sting", "sting_2"])).play()
+            AssetManager().getSound("sting_2").play()
             self.jack_noticed = True
 
         self.ambient_timer -= delta_time
@@ -502,11 +510,15 @@ class GameScene(Scene):
             if self.jack_pos == -1:
                 Game().load_scene("Jumpscare")
             else:
+                if random.randint(0, 5) == 0:
+                    AssetManager().getSound("jack_walk").play()
                 self.jack_pos += 1
                 if self.jack_pos > 2:
                     self.jack_pos = -1 if random.random() > 0.2 else random.choice([0, 1, 2])
                 if self.jack_pos == -1:
                     self.jack_move_timer = random.uniform(self.jack_jumpscare_timer_min, self.jack_jumpscare_timer_max)
+                    if random.randint(0, 3) == 0:
+                        AssetManager().getSound("breath").play(-1)
             print(f"Set wait time to {self.jack_move_timer:.2f} seconds")
 
         super().update(delta_time)
@@ -538,6 +550,9 @@ class GameScene(Scene):
         self.position = 1
         AssetManager().getSound("woosh").play()
         self.target_sound += self.move_sound
+        if self.flashlight_on:
+            self.flashlight_on = False
+            AssetManager().getSound("flashlight_click").play()
 
     def on_hover_left(self):
         """Called when mouse starts hovering over left button"""
