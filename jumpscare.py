@@ -13,6 +13,7 @@ class JumpscareScene(Scene):
 
     def on_enter(self):
         AssetManager().getSound("jumpscare_sound").play()
+        AssetManager().getSound("jumpscare").play()
         return super().on_enter()
     
     def on_exit(self):

@@ -24,16 +24,13 @@ class MainMenuScene(Scene):
         self.panel = Panel((100, 100), 400, 300)
 
         self.title_label = Label((70, 20), 500, "Touching Jack 2: The Remake The Sequel (Complete Edition)", font_size=40, color=(255, 255, 255))
-        self.menu_label = Label((150, 120), 100, "Main Menu", font_size=36, color=(255, 255, 255))
-        self.start_button = Button((150, 200), 200, 50, "Start Game", font_size=24, on_click_callback=self.start_game)
-        self.toggle_fullscreen_button = Button((150, 270), 200, 50, "Toggle Fullscreen", font_size=24, on_click_callback=Game().toggle_fullscreen)
-        self.quit_button = Button((150, 340), 200, 50, "Quit", font_size=24, on_click_callback=self.quit_game)
+        self.start_button = Button((50, 200), 200, 50, "Start Game", font_size=24, on_click_callback=self.start_game)
+        self.toggle_fullscreen_button = Button((50, 270), 200, 50, "Toggle Fullscreen", font_size=24, on_click_callback=Game().toggle_fullscreen)
+        self.quit_button = Button((50, 340), 200, 50, "Quit", font_size=24, on_click_callback=self.quit_game)
 
-        self.panel.add_child(self.menu_label)
-        self.panel.add_child(self.start_button)
-        self.panel.add_child(self.toggle_fullscreen_button)
-        self.panel.add_child(self.quit_button)
-        self.ui_manager.add_element(self.panel)
+        self.ui_manager.add_element(self.start_button)
+        self.ui_manager.add_element(self.toggle_fullscreen_button)
+        self.ui_manager.add_element(self.quit_button)
         self.ui_manager.add_element(self.title_label)
 
         self.ui_manager.add_element(FPSCounter())
@@ -47,7 +44,9 @@ class MainMenuScene(Scene):
 
         static = Actor("static")
         sprite = AnimationComponent(AssetManager().sliceSpritesheet("static_spritesheet", 640, 480))
-        sprite.tint = (100, 100, 100, 100)
+        sprite.tint = (100, 100, 100)
+        static.transform.position = pygame.Vector2(640//2, 480//2)
+        sprite.opacity = 100
         static.addComponent(sprite)
         self.add_actor(static)
 

@@ -3,6 +3,7 @@ from copy import copy
 import math
 import random
 
+from engine.builtin.components.animation_component import AnimationComponent
 from engine.builtin.shaders import cylindrical_undo, vignette
 from engine.core.scene import Scene
 from engine.core.game import Game
@@ -56,6 +57,18 @@ class GameScene(Scene):
         self.ambient_timer_max = 60
         self.ambient_timer = random.randint(self.ambient_timer_min, self.ambient_timer_max)
 
+        self.zac_pos = -1  # -1 is not present, 0 is in vent and 1 is in room
+        self.zac_min_move_timer = 10
+        self.zac_max_move_timer = 30
+        self.zac_move_timer = random.randint(self.zac_min_move_timer, self.zac_max_move_timer) + 50
+        self.zac_flashlight_move_threshold_min = 3
+        self.zac_flashlight_move_threshold_max = 6
+        self.zac_flashlight_move_threshold = random.uniform(self.zac_flashlight_move_threshold_min, self.zac_flashlight_move_threshold_max)
+        self.zac_flashlight_move_timer = 0
+        self.zac_ambient_noise = 2.5
+        self.zac_flashlight_cooldown = 20
+        self.zac_appearance_cooldown = 35
+
         self._sound = 0
         self.sound = 0
         self.max_sound = 4
@@ -75,7 +88,7 @@ class GameScene(Scene):
 
         self.power = 100
         self.power_drain_rate = 1.2
-        self.flashlight_power_drain_rate = 0.5
+        self.flashlight_power_drain_rate = 1
         self.flashlight_on = False
 
         self.time = 0
@@ -111,19 +124,20 @@ class GameScene(Scene):
         outside.addComponent(outside_sprite)
         self.add_actor(outside)
 
-        ceiling_darkness = Actor("ceiling_darkness")
+        self.ceiling_darkness = Actor("ceiling_darkness")
         ceiling_sprite = SpriteComponent("black_square", tint_color=(interior_brightness, interior_brightness, interior_brightness))
-        ceiling_darkness.transform.scale = pygame.Vector2(1)  # Adjust scale as needed
-        ceiling_darkness.transform.position = self.positions[3]
-        ceiling_darkness.addComponent(ceiling_sprite)
-        self.add_actor(ceiling_darkness)
+        self.ceiling_darkness.transform.scale = pygame.Vector2(0.2)  # Adjust scale as needed
+        self.ceiling_darkness.transform.rotation = 90
+        self.ceiling_darkness.transform.position = self.positions[3]
+        self.ceiling_darkness.addComponent(ceiling_sprite)
+        self.add_actor(self.ceiling_darkness)
 
-        # ceiling_zac = Actor("ceiling_zac")
-        # ceiling_zac_sprite = SpriteComponent("ceiling_zac", tint_color=(interior_brightness, interior_brightness, interior_brightness))
-        # ceiling_zac.transform.scale = pygame.Vector2(1)  # Adjust scale as needed
-        # ceiling_zac.transform.position = self.positions[3]
-        # ceiling_zac.addComponent(ceiling_zac_sprite)
-        # self.add_actor(ceiling_zac)
+        self.zac = Actor("zac")
+        ceiling_zac_sprite = SpriteComponent("black_square", tint_color=(interior_brightness, interior_brightness, interior_brightness))
+        self.zac.transform.scale = pygame.Vector2(1)  # Adjust scale as needed
+        self.zac.transform.position = self.positions[3]
+        self.zac.addComponent(ceiling_zac_sprite)
+        self.add_actor(self.zac)
 
         ceiling = Actor("ceiling")
         ceiling_sprite = SpriteComponent("ceiling", tint_color=(interior_brightness, interior_brightness, interior_brightness))
@@ -152,6 +166,15 @@ class GameScene(Scene):
         monitor_jack.transform.position = self.positions[1]
         monitor_jack.addComponent(monitor_jack_sprite)
         self.add_actor(monitor_jack)
+
+        self.monitor_static = Actor("static")
+        monitor_static_sprite = AnimationComponent(AssetManager().sliceSpritesheet("static_spritesheet", 853, 480))
+        self.monitor_static.transform.position = self.positions[1] + pygame.Vector2(10, 5)
+        monitor_static_sprite.tint = (100, 100, 100)
+        monitor_static_sprite.opacity = 100
+        self.monitor_static.transform.scale = pygame.Vector2(0.32)  # Adjust scale as needed
+        self.monitor_static.addComponent(monitor_static_sprite)
+        self.add_actor(self.monitor_static)
 
         power_button = Actor("power_button")
         power_button_sprite = SpriteComponent("power_button", tint_color=(interior_brightness, interior_brightness, interior_brightness))
@@ -210,6 +233,13 @@ class GameScene(Scene):
         window.transform.position = self.positions[2]
         window.addComponent(window_sprite)
         self.add_actor(window)
+
+        self.zac_room = Actor("zac room")
+        zac_room_sprite = SpriteComponent("zac_room", tint_color=(interior_brightness, interior_brightness, interior_brightness))
+        self.zac_room.transform.scale = pygame.Vector2(1)  # Adjust scale as needed
+        self.zac_room.transform.position = self.positions[1]
+        self.zac_room.addComponent(zac_room_sprite)
+        self.add_actor(self.zac_room)
 
         camera = Actor("camera")
         camera.addComponent(CameraComponent(interpolate=True, smoothing=20))
@@ -281,6 +311,7 @@ class GameScene(Scene):
             if self.power <= 0:
                 return
             self.flashlight_on = True
+            self.zac_flashlight_move_threshold = random.uniform(self.zac_flashlight_move_threshold_min, self.zac_flashlight_move_threshold_max)
             AssetManager().getSound("flashlight_click").play()
 
         def flashlight_off():
@@ -290,6 +321,7 @@ class GameScene(Scene):
         self.flashlight_button = Button((Game().width//2, 440), 100, 50, "Flashlight", font_size=24, on_click_callback=flashlight_on, on_release_callback=flashlight_off)
 
         self.lower_panel.add_child(self.sleep_button)
+        self.lower_panel.add_child(self.flashlight_button)
         self.lower_panel.add_child(self.next_cam_button)
         self.lower_panel.add_child(self.previous_cam_button)
         self.lower_panel.add_child(self.touch_jack_button)
@@ -303,7 +335,6 @@ class GameScene(Scene):
         self.ui_manager.add_element(self.lower_panel)
         self.ui_manager.add_element(FPSCounter((0,20)))
 
-
     def on_exit(self):
         pygame.mixer.music.stop()
         Game().remove_postprocess_shader(cylindrical_undo.cylindrical_undo_shader)
@@ -313,6 +344,35 @@ class GameScene(Scene):
     def update(self, delta_time):
         # Update camera position based on the current position
         self.get_actor("camera").transform.position = self.positions[self.position]
+
+
+        zac_room_sprite = self.zac_room.getComponent(SpriteComponent)
+        zac_room_sprite.enabled = self.zac_pos == 1
+
+        zac_sprite = self.zac.getComponent(SpriteComponent)
+        zac_sprite.enabled = self.zac_pos == 0
+        zac_sprite.set_sprite("black_square")
+
+        self.zac_move_timer -= delta_time
+        if self.zac_move_timer <= 0:
+            self.zac_move_timer = random.randint(self.zac_min_move_timer, self.zac_max_move_timer)
+            self.zac_pos += 1
+            if self.zac_pos == 1:
+                AssetManager().getSound("zac").play(-1)
+            if self.zac_pos == 2:
+                AssetManager().getSound("zac").stop()
+                self.zac_pos = -1
+                self.zac_move_timer += self.zac_appearance_cooldown
+
+        self.ceiling_darkness.getComponent(SpriteComponent).set_sprite(["black_square", "vent"][self.flashlight_on])
+        if self.flashlight_on:
+            if self.zac_pos == 0:
+                self.zac_flashlight_move_timer += delta_time
+                zac_sprite.set_sprite("zac_vent")
+                if self.zac_flashlight_move_timer >= self.zac_flashlight_move_threshold:
+                    self.zac_pos = -1
+                    AssetManager().getSound("vent_run").play()
+                    self.zac_move_timer = random.uniform(self.zac_min_move_timer, self.zac_max_move_timer) + self.zac_flashlight_cooldown
 
         self.garfield_sprite.enabled = self.garfield_on_bed
 
@@ -338,6 +398,8 @@ class GameScene(Scene):
 
         if self.power <= 0:
             self.monitor_on = False
+            self.flashlight_on = False
+            self.flashlight_button.text = "Flashlight (no power)"
 
         if self.position == 2 and self.jack_pos == -1 and not self.jack_noticed:
             AssetManager().getSound(random.choice(["sting", "sting_2"])).play()
@@ -349,6 +411,7 @@ class GameScene(Scene):
             AssetManager().getSound(random.choice(["ambient_1", "ambient_2", "ambient_3", "ambient_4", "ambient_5"])).play()
 
         self.sleep_button.set_active(self.position == 0 and not self.asleep)
+        self.flashlight_button.set_active(self.position == 3 and not self.asleep)
         self.next_cam_button.set_active(self.position == 1 and not self.asleep and self.monitor_on)
         self.previous_cam_button.set_active(self.position == 1 and not self.asleep and self.monitor_on)
         self.touch_jack_button.set_active(self.position == 2 and not self.asleep and self.jack_pos == -1)
@@ -364,6 +427,7 @@ class GameScene(Scene):
         monitor_jack.transform.position = self.positions[1] + self.jack_locations[self.jack_pos]
 
         monitor_background.getComponent(SpriteComponent).enabled = self.monitor_on
+        self.monitor_static.getComponent(AnimationComponent).enabled = self.monitor_on
         # Show jack when monitor is on and either jack is on current camera or jack is outside (pos -1) on camera 2
         jack_visible = (self.monitor_on and (self.current_camera == self.jack_pos)) or self.jack_pos == -1
         monitor_jack.getComponent(SpriteComponent).enabled = jack_visible
@@ -402,7 +466,7 @@ class GameScene(Scene):
         self.target_sound = min(max(0, self.target_sound - (self.sound_fade_rate * delta_time)), self.max_sound)
         self._sound = min(self._sound + ((self.target_sound - self._sound) * (self.sound_smoothing * delta_time)), self.max_sound)
 
-        self.sound = self._sound + self.passive_monitor_sound * self.monitor_on + self.sleep_sound * self.asleep
+        self.sound = self._sound + self.passive_monitor_sound * self.monitor_on + self.sleep_sound * self.asleep + self.zac_ambient_noise * (self.zac_pos == 1)
 
         self.jack_move_timer -= delta_time
         if self.jack_move_timer - (self.sound * self.passive_sound_aggression) <= 0:
