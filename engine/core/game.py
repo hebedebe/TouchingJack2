@@ -427,13 +427,65 @@ class Game:
         vao.render()
 
     def run(self):
+        """Optimized game loop with performance monitoring"""
+        from .performance.memory_manager import get_memory_manager
+        from .performance.cache_manager import get_cache_manager
+        
+        memory_manager = get_memory_manager()
+        cache_manager = get_cache_manager()
+        
+        # Performance tracking
+        frame_count = 0
+        last_cleanup_time = time.time()
+        last_stats_time = time.time()
+        
+        # Target FPS
+        target_fps = 60
+        self.clock = pygame.time.Clock()
+        
+        print("Starting optimized game loop...")
+        
         while self.running:
+            frame_start_time = time.time()
+            
+            # Handle events
             for event in pygame.event.get():
                 self.handle_event(event)
 
+            # Update game state
             self.update(self.delta_time)
+            
+            # Render frame
             self.render()
             pygame.display.flip()
-            self.delta_time = min(max(float(self.clock.tick())/1000, 0), 1)
+            
+            # Calculate delta time with frame limiting
+            self.delta_time = min(max(float(self.clock.tick(target_fps))/1000, 0), 1/30)  # Cap at 30 FPS minimum
+            
+            frame_count += 1
+            current_time = time.time()
+            
+            # Periodic memory cleanup (every 10 seconds)
+            if current_time - last_cleanup_time > 10.0:
+                if memory_manager.should_cleanup():
+                    memory_manager.cleanup_memory()
+                cache_manager.cleanup_expired_all()
+                last_cleanup_time = current_time
+            
+            # Performance stats (every 5 seconds)
+            if current_time - last_stats_time > 5.0:
+                fps = self.clock.get_fps()
+                memory_stats = memory_manager.get_performance_stats()
+                
+                if fps < target_fps * 0.8:  # If FPS drops below 80% of target
+                    print(f"Performance warning: FPS={fps:.1f}, Memory={memory_stats['current_memory_mb']:.1f}MB")
+                    # Force cleanup if performance is poor
+                    memory_manager.cleanup_memory(force=True)
+                
+                last_stats_time = current_time
 
+        # Cleanup on exit
+        memory_manager.stop_auto_cleanup()
+        cache_manager.stop_auto_cleanup()
         pygame.quit()
+        print("Game loop ended with cleanup complete")

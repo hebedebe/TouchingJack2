@@ -1,21 +1,27 @@
 import pygame
 import os
 import json
+import threading
+import time
 from typing import Dict, Optional, Any, List
 from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from engine.core.singleton import singleton
+from engine.core.performance.cache_manager import get_cache_manager, cached
+from engine.core.performance.memory_manager import get_memory_manager, track_object
+from engine.core.performance.sprite_cache import get_sprite_cache
 
 @singleton
 class AssetManager:
     """
-    Manages loading, caching, and retrieval of game assets.
+    Optimized asset manager with advanced caching, memory management, and preloading.
     """
     
     def __init__(self, basePath: str = "assets"):
         self.basePath = Path(basePath)
         
-        # Asset caches
+        # Asset caches - now using performance system
         self.images: Dict[str, pygame.Surface] = {}
         self.sounds: Dict[str, pygame.mixer.Sound] = {}
         self.fonts: Dict[str, pygame.font.Font] = {}
@@ -25,6 +31,20 @@ class AssetManager:
         self.imageRefs: Dict[str, int] = {}
         self.soundRefs: Dict[str, int] = {}
         self.fontRefs: Dict[str, int] = {}
+        
+        # Performance managers
+        self._cache_manager = get_cache_manager()
+        self._memory_manager = get_memory_manager()
+        self._sprite_cache = get_sprite_cache()
+        
+        # Create specialized caches
+        self._cache_manager.create_cache("sprites", max_size=2000, default_ttl=300.0)
+        self._cache_manager.create_cache("sounds", max_size=500, default_ttl=600.0)
+        self._cache_manager.create_cache("fonts", max_size=100, default_ttl=1200.0)
+        
+        # Thread pool for async loading
+        self._thread_pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix="AssetLoader")
+        self._loading_lock = threading.RLock()
         
         # Default font settings
         self.defaultFontName: Optional[str] = None
@@ -42,8 +62,21 @@ class AssetManager:
         self.soundFormats = {'.wav', '.ogg', '.mp3'}
         self.fontFormats = {'.ttf', '.otf'}
         
+        # Performance tracking
+        self.load_times: Dict[str, float] = {}
+        self.access_counts: Dict[str, int] = {}
+        
         # Create directories if they don't exist
         self._createDirectories()
+        
+        # Preload critical assets
+        self._preload_critical_assets()
+        
+    def _preload_critical_assets(self) -> None:
+        """Preload critical assets for better performance"""
+        # This will be called during game initialization
+        # Add any assets that should be preloaded here
+        pass
         
     def _createDirectories(self) -> None:
         """Create asset directories if they don't exist."""
@@ -62,59 +95,90 @@ class AssetManager:
         }
         return type_paths[asset_type] / name
         
+    @cached("sprites", ttl=300.0)
     def loadImage(self, name: str, convert_alpha: bool = True) -> Optional[pygame.Surface]:
         """
-        Load an image asset.
+        Optimized image loading with caching and performance tracking.
         
         Args:
             name: Image filename or path relative to images directory
             convert_alpha: Whether to convert the image for optimal blitting
         """
-        if name in self.images:
-            self.imageRefs[name] = self.imageRefs.get(name, 0) + 1
-            return self.images[name]
-            
-        # Try to find the file
-        image_path = self._findAssetFile(self.imagePath, name, self.imageFormats)
-        if not image_path:
-            print(f"Could not find image: {name}")
-            return None
-            
-        try:
-            surface = pygame.image.load(str(image_path))
-            if convert_alpha:
-                surface = surface.convert_alpha()
-            else:
-                surface = surface.convert()
+        start_time = time.time()
+        
+        with self._loading_lock:
+            if name in self.images:
+                self.imageRefs[name] = self.imageRefs.get(name, 0) + 1
+                self.access_counts[name] = self.access_counts.get(name, 0) + 1
+                return self.images[name]
                 
-            self.images[name] = surface
-            self.imageRefs[name] = 1
-            return surface
-            
-        except pygame.error as e:
-            print(f"Could not load image {name}: {e}")
-            return None
-            
+            # Try to find the file
+            image_path = self._findAssetFile(self.imagePath, name, self.imageFormats)
+            if not image_path:
+                print(f"Could not find image: {name}")
+                return None
+                
+            try:
+                surface = pygame.image.load(str(image_path))
+                if convert_alpha:
+                    surface = surface.convert_alpha()
+                else:
+                    surface = surface.convert()
+                    
+                self.images[name] = surface
+                self.imageRefs[name] = 1
+                self.access_counts[name] = 1
+                
+                # Track memory usage
+                track_object(surface)
+                
+                # Cache the surface in sprite cache
+                self._sprite_cache.cache_surface(name, surface)
+                
+                # Record load time
+                load_time = time.time() - start_time
+                self.load_times[name] = load_time
+                
+                return surface
+                
+            except pygame.error as e:
+                print(f"Could not load image {name}: {e}")
+                return None
+                
+    @cached("sounds", ttl=600.0)        
     def loadSound(self, name: str) -> Optional[pygame.mixer.Sound]:
-        """Load a sound asset."""
-        if name in self.sounds:
-            self.soundRefs[name] = self.soundRefs.get(name, 0) + 1
-            return self.sounds[name]
-            
-        sound_path = self._findAssetFile(self.soundPath, name, self.soundFormats)
-        if not sound_path:
-            print(f"Could not find sound: {name}")
-            return None
-            
-        try:
-            sound = pygame.mixer.Sound(str(sound_path))
-            self.sounds[name] = sound
-            self.soundRefs[name] = 1
-            return sound
-            
-        except pygame.error as e:
-            print(f"Could not load sound {name}: {e}")
-            return None
+        """Optimized sound loading with caching."""
+        start_time = time.time()
+        
+        with self._loading_lock:
+            if name in self.sounds:
+                self.soundRefs[name] = self.soundRefs.get(name, 0) + 1
+                self.access_counts[name] = self.access_counts.get(name, 0) + 1
+                return self.sounds[name]
+                
+            sound_path = self._findAssetFile(self.soundPath, name, self.soundFormats)
+            if not sound_path:
+                print(f"Could not find sound: {name}")
+                return None
+                
+            try:
+                sound = pygame.mixer.Sound(str(sound_path))
+                self.sounds[name] = sound
+                self.soundRefs[name] = 1
+                self.access_counts[name] = 1
+                
+                # Track memory usage
+                track_object(sound)
+                
+                # Record load time
+                load_time = time.time() - start_time
+                self.load_times[name] = load_time
+                
+                return sound
+                
+            except pygame.error as e:
+                print(f"Could not load sound {name}: {e}")
+                return None
             
     def loadFont(self, name: str, size: int = 24) -> Optional[pygame.font.Font]:
         """Load a font asset."""

@@ -1,18 +1,19 @@
 import pygame
-from typing import Optional
+from typing import Optional, Tuple
 
 from ...core.world.component import Component
 from ...core.asset_manager import AssetManager
 from ...core.game import Game
+from ...core.performance.sprite_cache import get_sprite_cache
+from ...core.performance.fast_math import FastMath
 
 class SpriteComponent(Component):
     """
-    Component for rendering sprites using asset references.
-    Stores asset names rather than surfaces directly for better memory management.
+    Optimized component for rendering sprites with advanced caching and performance features.
     """
     
     # Exclude cache-related fields from serialization
-    __serialization_exclude__ = ["_cached_surface", "_cache_dirty"]
+    __serialization_exclude__ = ["_cached_surface", "_cache_dirty", "_last_transform_key"]
     
     def __init__(self, sprite_name: str = None, tint_color: pygame.Color = None):
         super().__init__()
@@ -20,8 +21,20 @@ class SpriteComponent(Component):
         # Asset reference
         self.sprite_name: Optional[str] = sprite_name
         
-        # Visual properties
-        self.tint_color: Optional[pygame.Color] = tint_color
+        # Visual properties - normalize tint_color to pygame.Color
+        if tint_color is None:
+            self.tint_color = pygame.Color(255, 255, 255, 255)
+        elif isinstance(tint_color, pygame.Color):
+            self.tint_color = tint_color
+        elif isinstance(tint_color, (tuple, list)):
+            if len(tint_color) == 3:
+                self.tint_color = pygame.Color(*tint_color, 255)
+            elif len(tint_color) >= 4:
+                self.tint_color = pygame.Color(*tint_color[:4])
+            else:
+                self.tint_color = pygame.Color(255, 255, 255, 255)
+        else:
+            self.tint_color = pygame.Color(255, 255, 255, 255)
         self.alpha: int = 255  # 0-255 transparency
         self.visible: bool = True
         
@@ -34,20 +47,38 @@ class SpriteComponent(Component):
         self.flip_horizontal: bool = False
         self.flip_vertical: bool = False
         
-        # Cached surface for tinting/alpha operations
+        # Performance optimizations
         self._cached_surface: Optional[pygame.Surface] = None
         self._cache_dirty: bool = True
+        self._last_transform_key: Optional[str] = None
+        self._sprite_cache = get_sprite_cache()
+        
+        # Fast math for calculations
+        self._fast_math = FastMath()
         
     def set_sprite(self, sprite_name: str) -> None:
-        """Set the sprite asset name."""
+        """Set the sprite asset name with cache invalidation."""
         if self.sprite_name != sprite_name:
             self.sprite_name = sprite_name
             self._invalidate_cache()
             
-    def set_tint(self, color: pygame.Color) -> None:
-        """Set the tint color for the sprite."""
-        if self.tint_color != color:
-            self.tint_color = color
+    def set_tint(self, color) -> None:
+        """Set the tint color for the sprite with cache invalidation."""
+        # Normalize color to pygame.Color
+        if isinstance(color, pygame.Color):
+            new_color = color
+        elif isinstance(color, (tuple, list)):
+            if len(color) == 3:
+                new_color = pygame.Color(*color, 255)
+            elif len(color) >= 4:
+                new_color = pygame.Color(*color[:4])
+            else:
+                new_color = pygame.Color(255, 255, 255, 255)
+        else:
+            new_color = pygame.Color(255, 255, 255, 255)
+            
+        if self.tint_color != new_color:
+            self.tint_color = new_color
             self._invalidate_cache()
             
     def set_alpha(self, alpha: int) -> None:
@@ -151,41 +182,74 @@ class SpriteComponent(Component):
         return rect
         
     def render(self) -> None:
-        """Render the sprite component."""
+        """Optimized render method using sprite cache and fast math."""
         if not self.visible or not self.sprite_name or not self.actor:
             return
-            
-        # Get the processed sprite surface
-        sprite_surface = self._get_processed_surface()
-        if not sprite_surface:
-            return
-            
-        # Calculate final position with offset
-        final_pos = self.actor.screenPosition + self.offset
         
-        # Apply scaling
-        final_scale = pygame.Vector2(
+        # Calculate final position with offset using fast math
+        final_pos_x = self.actor.screenPosition.x + self.offset.x
+        final_pos_y = self.actor.screenPosition.y + self.offset.y
+        
+        # Calculate final transforms
+        final_scale = (
             self.actor.transform.scale.x * self.scale_modifier.x,
             self.actor.transform.scale.y * self.scale_modifier.y
         )
-        
-        # Scale the surface if needed
-        if final_scale.x != 1 or final_scale.y != 1:
-            new_size = (
-                int(sprite_surface.get_width() * final_scale.x),
-                int(sprite_surface.get_height() * final_scale.y)
-            )
-            if new_size[0] > 0 and new_size[1] > 0:
-                sprite_surface = pygame.transform.scale(sprite_surface, new_size)
-            
-        # Apply rotation
         final_rotation = self.actor.transform.rotation + self.rotation_offset
-        if final_rotation != 0:
-            sprite_surface = pygame.transform.rotate(sprite_surface, -final_rotation)  # Negative for clockwise
+        
+        # Generate transform key for caching
+        if self.tint_color:
+            if hasattr(self.tint_color, 'r'):
+                # pygame.Color object
+                tint_tuple = (self.tint_color.r, self.tint_color.g, self.tint_color.b, self.tint_color.a)
+            elif isinstance(self.tint_color, (tuple, list)) and len(self.tint_color) >= 3:
+                # Tuple/list format
+                if len(self.tint_color) == 3:
+                    tint_tuple = (*self.tint_color, 255)  # Add alpha if missing
+                else:
+                    tint_tuple = tuple(self.tint_color[:4])
+            else:
+                tint_tuple = (255, 255, 255, 255)
+        else:
+            tint_tuple = (255, 255, 255, 255)
+        
+        # Try to get cached transformed sprite
+        sprite_surface = self._sprite_cache.get_transformed_sprite(
+            self.sprite_name,
+            final_scale,
+            final_rotation,
+            tint_tuple,
+            self.alpha
+        )
+        
+        if not sprite_surface:
+            # Fallback to asset manager if not in cache
+            original_surface = AssetManager().getSprite(self.sprite_name)
+            if not original_surface:
+                return
             
-        # Calculate render position (center the sprite)
+            # Cache the original surface
+            self._sprite_cache.cache_surface(self.sprite_name, original_surface)
+            
+            # Get transformed version
+            sprite_surface = self._sprite_cache.get_transformed_sprite(
+                self.sprite_name,
+                final_scale,
+                final_rotation,
+                tint_tuple,
+                self.alpha
+            )
+        
+        if not sprite_surface:
+            return
+        
+        # Apply flipping if needed (not cached as it's rare)
+        if self.flip_horizontal or self.flip_vertical:
+            sprite_surface = pygame.transform.flip(sprite_surface, self.flip_horizontal, self.flip_vertical)
+        
+        # Calculate render position using fast math
         render_rect = sprite_surface.get_rect()
-        render_rect.center = (int(final_pos.x), int(final_pos.y))
+        render_rect.center = (int(final_pos_x), int(final_pos_y))
         
         # Render to the target surface
         Game().buffer.blit(sprite_surface, render_rect)
